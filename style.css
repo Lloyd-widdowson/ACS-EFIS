@@ -3411,7 +3411,7 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
   display: none !important;
 }
 
-/* Landscape Viewport Fit */
+/* Landscape Viewport Fit - Protected and untouched */
 @media (orientation: landscape) {
   #cockpit-footer-nav {
     display: none !important;
@@ -3421,3 +3421,182 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     display: none !important;
   }
 }
+
+/* ==========================================================================
+   PORTRAIT ORIENTATION RESPONSIVE LAYOUT FIXES (PORTRAIT ONLY)
+   ========================================================================== */
+@media (orientation: portrait) {
+  /* 1. Compact Live Weather Radar Widget (Shrunk ~40%, Zero Bottom Collision) */
+  .weather-hud-bar {
+    bottom: 72px !important;
+    left: 6px !important;
+    padding: 4px 7px !important;
+    min-width: 135px !important;
+    max-width: 160px !important;
+    gap: 3px !important;
+    border-radius: 4px !important;
+    z-index: 55 !important;
+    background: rgba(9, 13, 22, 0.96) !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.8) !important;
+  }
+
+  .weather-hud-controls {
+    gap: 5px !important;
+  }
+
+  .weather-play-btn {
+    font-size: 9px !important;
+    padding: 1.5px 5px !important;
+    border-radius: 2px !important;
+  }
+
+  .weather-hud-badge {
+    font-size: 9.5px !important;
+    letter-spacing: 0.2px !important;
+  }
+
+  .weather-status-pill {
+    font-size: 7.5px !important;
+    letter-spacing: 0.2px !important;
+  }
+
+  .weather-track-container {
+    padding: 1px 0 !important;
+    gap: 2px !important;
+  }
+
+  .weather-track-dot {
+    height: 3.5px !important;
+    border-radius: 1.5px !important;
+  }
+
+  .weather-legend-bar {
+    gap: 1px !important;
+    margin-top: 1px !important;
+  }
+
+  .weather-legend-bar .legend-lbl {
+    display: none !important; /* Hide long static text in portrait to eliminate vertical bloat */
+  }
+
+  .weather-legend-bar .legend-gradient {
+    height: 3px !important;
+    border-radius: 1.5px !important;
+  }
+
+  /* 2. Minimized / Fluid Wrapped Map Route Bar & Action Buttons */
+  .map-route-bar {
+    bottom: 4px !important;
+    left: 4px !important;
+    right: 4px !important;
+    padding: 4px 6px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 3px !important;
+    z-index: 50 !important;
+    background: rgba(0, 0, 0, 0.94) !important;
+    border: 1px solid #374151 !important;
+    border-radius: 4px !important;
+  }
+
+  .map-route-bar .route-info-text {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    width: 100% !important;
+    gap: 4px !important;
+  }
+
+  .map-route-bar .route-title {
+    font-size: 9.5px !important;
+    margin-right: 2px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 180px !important;
+  }
+
+  .map-route-bar .route-metrics {
+    font-size: 8.5px !important;
+    white-space: nowrap !important;
+  }
+
+  .map-route-bar .route-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 3px !important;
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+
+  .map-route-bar .route-actions button,
+  .map-route-bar .btn-cyan,
+  .map-route-bar .btn-magenta,
+  .map-route-bar .btn-yellow,
+  .map-route-bar .btn-lock-route {
+    padding: 2.5px 5px !important;
+    font-size: 8.5px !important;
+    flex: 1 1 auto !important;
+    text-align: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+  }
+
+  .map-route-bar .route-lock-badge {
+    font-size: 8px !important;
+    padding: 1px 4px !important;
+  }
+
+  /* 3. Top Status Bar & Map Layer Header (No Telemetry Tag Collision) */
+  .map-layer-selector {
+    top: 6px !important;
+    left: 6px !important;
+    padding: 2px 4px !important;
+    gap: 2.5px !important;
+    max-width: calc(100% - 135px) !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    scrollbar-width: none !important;
+    border-radius: 3px !important;
+  }
+
+  .map-layer-selector::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .map-layer-selector .hud-title {
+    display: none !important; /* Conceal label on compact mobile portrait */
+  }
+
+  .map-layer-selector .layer-btn {
+    padding: 2px 5px !important;
+    font-size: 8.5px !important;
+  }
+
+  .map-hud-controls {
+    top: 6px !important;
+    right: 6px !important;
+    max-height: 70vh !important;
+  }
+
+  .hud-menu-toggle-btn {
+    padding: 4px 7px !important;
+    font-size: 9.5px !important;
+    gap: 4px !important;
+  }
+
+  .hud-hamburger-icon {
+    font-size: 12px !important;
+  }
+
+  .map-hud-body {
+    max-height: 65vh !important;
+    gap: 3.5px !important;
+  }
+
+  .hud-btn, .hud-btn-emergency, .hud-btn-home {
+    font-size: 9px !important;
+    padding: 3px 6px !important;
+  }
+}
+
