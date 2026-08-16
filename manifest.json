@@ -1,0 +1,68 @@
+{
+  "name": "ACS EFIS & FMS - Aviation Flight Management System",
+  "short_name": "ACS EFIS",
+  "description": "Professional Glass Cockpit Primary Flight Display (PFD), Navigation Moving Map, ADS-B Traffic Radar & Australian VNC/VTC Airspace Suite",
+  "start_url": "index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#050811",
+  "theme_color": "#050811",
+  "icons": [
+    {
+      "src": "favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "favicon-48x48.png",
+      "sizes": "48x48",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "app-store-thumbnail.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Primary Flight Display (PFD)",
+      "short_name": "PFD",
+      "description": "Open Primary Artificial Horizon & Flight Instruments",
+      "url": "index.html#screen-pfd",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Moving Map & Airspace",
+      "short_name": "Map",
+      "description": "Open Live Aeronautical Moving Map & Australian VNC/VTC Charts",
+      "url": "index.html#screen-map",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+# Backup directories
+backup_stable_v1/
+backup_stable_v2/
+*.log
+*.tmp
+.DS_Store
+Thumbs.db

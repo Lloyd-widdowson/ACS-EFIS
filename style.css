@@ -1,0 +1,3423 @@
+/* ==========================================================================
+   AUTHENTIC AVIATION EFIS, LIVE FLIGHT MAPS & EMERGENCY DIVERT STYLESHEET
+   ========================================================================== */
+
+:root {
+  --bg-cockpit: #000000;
+  --panel-bg: #000000;
+  --panel-bezel: #111827;
+  --panel-border: #1f2937;
+
+  --sky-blue: #0284c7;
+  --ground-brown: #854d0e;
+  --ground-brown-dark: #663b0a;
+  --terrain-green: #2d5a27;
+
+  --aviation-cyan: #00e5ff;
+  --aviation-magenta: #e040fb;
+  --aviation-yellow: #ffeb3b;
+  --aviation-green: #00e676;
+  --aviation-red: #ff1744;
+  --aviation-white: #ffffff;
+  --aviation-gray: #9ca3af;
+  --aviation-orange: #ff9100;
+
+  --font-mono: 'Share Tech Mono', monospace, 'Courier New', monospace;
+  --font-sans: 'Rajdhani', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  width: 100dvw;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  position: fixed;
+  touch-action: none;
+  background-color: #000000;
+  color: var(--aviation-white);
+  font-family: var(--font-mono);
+  -webkit-text-size-adjust: 100%;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+#app-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  width: 100dvw;
+  height: 100dvh;
+  overflow: hidden;
+  position: relative;
+  background-color: #000000;
+}
+
+/* --------------------------------------------------------------------------
+   Top Minimal Cockpit Bar
+   -------------------------------------------------------------------------- */
+#cockpit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  background-color: #000000;
+  border-bottom: 1px solid #111827;
+  padding: 0 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  z-index: 100;
+}
+
+.header-left, .header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: bold;
+}
+
+.status-indicator.live {
+  background: rgba(0, 230, 118, 0.12);
+  border: 1px solid var(--aviation-green);
+  color: var(--aviation-green);
+}
+
+.status-indicator.live .dot {
+  width: 6px;
+  height: 6px;
+  background: var(--aviation-green);
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+.status-indicator.ok {
+  background: rgba(0, 229, 255, 0.1);
+  border: 1px solid var(--aviation-cyan);
+  color: var(--aviation-cyan);
+}
+
+/* Garmin Synthetic Vision Switcher */
+.btn-svt {
+  background: #111827;
+  border: 1px solid var(--aviation-cyan);
+  color: var(--aviation-cyan);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+
+.btn-svt.active {
+  background: var(--aviation-cyan);
+  color: #000000;
+}
+
+/* Prominent Emergency Button */
+.btn-emergency {
+  background: linear-gradient(135deg, #b71c1c 0%, #ff1744 100%);
+  color: #ffffff;
+  border: 1px solid #ffffff;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(255, 23, 68, 0.6);
+  animation: pulse 2s infinite;
+}
+
+.btn-emergency:hover {
+  background: #ff1744;
+  box-shadow: 0 0 16px rgba(255, 23, 68, 0.9);
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.98); opacity: 0.85; }
+  50% { transform: scale(1.02); opacity: 1; }
+  100% { transform: scale(0.98); opacity: 0.85; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+#warning-banner {
+  background: var(--aviation-red);
+  color: #000000;
+  font-weight: 900;
+  padding: 1px 12px;
+  border-radius: 3px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  animation: blink 0.6s infinite;
+}
+
+#warning-banner.hidden {
+  display: none;
+}
+
+/* ADS-B Header Status Pill */
+.status-indicator.traffic-live {
+  border-color: var(--aviation-cyan);
+  cursor: pointer;
+  background: rgba(0, 229, 255, 0.1);
+}
+
+.status-indicator.traffic-live:hover {
+  background: rgba(0, 229, 255, 0.25);
+  border-color: #ffffff;
+}
+
+.dot-traffic {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--aviation-cyan);
+  margin-right: 3px;
+  animation: pulse 1.8s infinite;
+}
+
+/* TCAS Traffic Warning Banner */
+.traffic-warning-banner {
+  background: #ffea00;
+  color: #000000;
+  font-weight: 900;
+  padding: 1px 12px;
+  border-radius: 3px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  animation: blink 0.5s infinite;
+}
+
+.traffic-warning-banner.collision {
+  background: #ff1744 !important;
+  color: #ffffff !important;
+}
+
+.traffic-warning-banner.hidden {
+  display: none !important;
+}
+
+/* Airspace Penetration & Proximity Warning Banner in Header (Clean Solid Non-Blinking) */
+.airspace-warning-banner {
+  background: #cc0033;
+  color: #ffffff;
+  font-weight: 900;
+  padding: 2px 14px;
+  border-radius: 4px;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  animation: none !important; /* Solid display - no distracting flashing */
+  box-shadow: 0 0 10px rgba(204, 0, 51, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.airspace-warning-banner.mil {
+  background: #c00080 !important;
+  box-shadow: 0 0 10px rgba(192, 0, 128, 0.7);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.airspace-warning-banner.controlled {
+  background: #0080ff !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 10px rgba(0, 128, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.airspace-warning-banner.danger {
+  background: #ff4500 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 10px rgba(255, 69, 0, 0.7);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.airspace-warning-banner.proximity {
+  background: #ffea00 !important;
+  color: #000000 !important;
+  animation: none !important;
+  box-shadow: 0 0 8px rgba(255, 234, 0, 0.8);
+  border-color: #000000;
+}
+
+.airspace-warning-banner.hidden {
+  display: none !important;
+}
+
+/* PFD Traffic Callout HUD */
+.pfd-traffic-callout {
+  position: absolute;
+  top: 54px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 23, 68, 0.92);
+  border: 2px solid #ffffff;
+  border-radius: 6px;
+  padding: 4px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-weight: 900;
+  font-size: 13px;
+  box-shadow: 0 0 20px rgba(255, 23, 68, 0.8);
+  z-index: 90;
+  animation: none !important;
+}
+
+.pfd-traffic-callout.advisory {
+  background: rgba(255, 234, 0, 0.94);
+  color: #000000;
+  border-color: #000000;
+  box-shadow: 0 0 20px rgba(255, 234, 0, 0.8);
+  animation: none !important;
+}
+
+.pfd-traffic-callout.hidden {
+  display: none !important;
+}
+
+/* PFD Airspace Penetration & Proximity Callout HUD (Clean Solid Non-Blinking) */
+.pfd-airspace-callout {
+  position: absolute;
+  top: 86px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(204, 0, 51, 0.94);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 6px;
+  padding: 4px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-weight: 900;
+  font-size: 12px;
+  box-shadow: 0 0 16px rgba(204, 0, 51, 0.8);
+  z-index: 89;
+  animation: none !important; /* Solid visible indicator - no distracting flashing */
+  white-space: nowrap;
+}
+
+.pfd-airspace-callout.mil {
+  background: rgba(192, 0, 128, 0.94);
+  box-shadow: 0 0 16px rgba(192, 0, 128, 0.8);
+}
+
+.pfd-airspace-callout.controlled {
+  background: rgba(0, 128, 255, 0.94);
+  box-shadow: 0 0 16px rgba(0, 128, 255, 0.8);
+}
+
+.pfd-airspace-callout.danger {
+  background: rgba(255, 69, 0, 0.94);
+  box-shadow: 0 0 16px rgba(255, 69, 0, 0.8);
+}
+
+.pfd-airspace-callout.proximity {
+  background: rgba(255, 234, 0, 0.95);
+  color: #000000;
+  border-color: #000000;
+  box-shadow: 0 0 16px rgba(255, 234, 0, 0.8);
+  animation: none !important;
+}
+
+.pfd-airspace-callout.hidden {
+  display: none !important;
+}
+
+/* VNC / VTC Floating Airspace Labels & Badges */
+.leaflet-airspace-tag {
+  background: transparent;
+  border: none;
+}
+
+.airspace-badge-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  letter-spacing: 0.5px;
+  display: inline-block;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  transition: transform 0.15s ease;
+}
+
+.airspace-badge-tag.vtc-step {
+  font-size: 8.5px;
+  padding: 1px 5px;
+  border-width: 1px;
+}
+
+/* VFR Inbound Visual Reporting Waypoints on Leaflet Map */
+.leaflet-vfr-waypoint-icon {
+  background: transparent;
+  border: none;
+}
+
+.vfr-wpt-badge {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(10, 20, 35, 0.90);
+  border: 1.5px solid #00e5ff;
+  color: #00e5ff;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 900;
+  padding: 1px 5px;
+  border-radius: 3px;
+  box-shadow: 0 0 6px rgba(0, 229, 255, 0.5);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.vfr-wpt-badge:hover {
+  background: rgba(0, 229, 255, 0.25);
+  color: #ffffff;
+  border-color: #ffffff;
+}
+
+.vfr-wpt-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00e5ff;
+  box-shadow: 0 0 6px #00e5ff;
+  display: inline-block;
+}
+
+.airspace-badge-tag:hover {
+  transform: scale(1.08);
+}
+
+.airspace-badge-restricted {
+  background: rgba(10, 14, 23, 0.92);
+  border: 1.5px solid #cc0033;
+  color: #ff5252;
+  box-shadow: 0 0 8px rgba(204, 0, 51, 0.5);
+}
+
+.airspace-badge-danger {
+  background: rgba(10, 14, 23, 0.92);
+  border: 1.5px dashed #ff4500;
+  color: #ff9100;
+  box-shadow: 0 0 8px rgba(255, 69, 0, 0.4);
+}
+
+.airspace-badge-mil {
+  background: rgba(10, 14, 23, 0.92);
+  border: 1.5px dashed #c00080;
+  color: #ff4081;
+  box-shadow: 0 0 8px rgba(192, 0, 128, 0.5);
+}
+
+.airspace-badge-controlled {
+  background: rgba(10, 14, 23, 0.92);
+  border: 1.5px solid #0080ff;
+  color: #00e5ff;
+  box-shadow: 0 0 8px rgba(0, 128, 255, 0.4);
+}
+
+.airspace-badge-classe {
+  background: rgba(10, 14, 23, 0.92);
+  border: 1.5px solid #8b4513;
+  color: #d7ccc8;
+  box-shadow: 0 0 6px rgba(139, 69, 19, 0.4);
+}
+
+/* Airspace Interactive Popup */
+.airspace-leaflet-popup .leaflet-popup-content-wrapper {
+  background: rgba(10, 15, 26, 0.96) !important;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.85);
+  color: #ffffff;
+  font-family: var(--font-mono);
+}
+
+.airspace-leaflet-popup .leaflet-popup-tip {
+  background: rgba(10, 15, 26, 0.96) !important;
+}
+
+.airspace-popup-content {
+  padding: 4px;
+}
+
+.airspace-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #374151;
+  padding-bottom: 5px;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+
+.airspace-popup-title {
+  font-size: 12px;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+.airspace-popup-class {
+  font-size: 9px;
+  font-weight: bold;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.airspace-popup-limits {
+  display: flex;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.airspace-popup-detail {
+  font-size: 10px;
+  color: #9ca3af;
+  margin-bottom: 3px;
+  line-height: 1.3;
+}
+
+.airspace-popup-freq {
+  color: var(--aviation-cyan);
+  font-weight: bold;
+}
+
+/* Threat Status Badges */
+.badge-threat-ra {
+  background: #ff1744;
+  color: #ffffff;
+  font-weight: 900;
+  font-size: 9px;
+  padding: 2px 5px;
+  border-radius: 2px;
+  animation: blink 0.5s infinite;
+}
+
+.badge-threat-ta {
+  background: #ffea00;
+  color: #000000;
+  font-weight: 900;
+  font-size: 9px;
+  padding: 2px 5px;
+  border-radius: 2px;
+}
+
+.badge-threat-prox {
+  background: rgba(0, 229, 255, 0.2);
+  color: #00e5ff;
+  border: 1px solid #00e5ff;
+  font-weight: bold;
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.badge-threat-none {
+  color: #6b7280;
+  font-size: 9px;
+}
+
+.traffic-status-strip {
+  display: flex;
+  justify-content: space-between;
+  background: #111827;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid #1f2937;
+  font-size: 11px;
+}
+
+.time-display {
+  color: var(--aviation-yellow);
+  font-weight: bold;
+}
+
+.battery-display {
+  color: var(--aviation-green);
+}
+
+#btn-toggle-orientation {
+  background: #111827;
+  border: 1px solid #374151;
+  color: var(--aviation-cyan);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+#btn-toggle-orientation:hover {
+  background: var(--aviation-cyan);
+  color: #000;
+}
+
+.btn-fullscreen {
+  background: #111827;
+  border: 1px solid #374151;
+  color: var(--aviation-cyan);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 7px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.15s ease;
+}
+
+.btn-fullscreen:hover, .btn-fullscreen.active {
+  background: var(--aviation-cyan);
+  color: #000000;
+}
+
+/* Temporary Subtle HUD Page Pill Indicator */
+.hud-page-indicator {
+  position: absolute;
+  top: 42px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.hud-page-indicator.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.hud-page-indicator.hidden {
+  display: none !important;
+}
+
+.hud-page-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(9, 13, 22, 0.95);
+  border: 1.5px solid var(--aviation-cyan);
+  border-radius: 20px;
+  padding: 5px 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 15px rgba(0, 229, 255, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.hud-page-icon {
+  font-size: 13px;
+  color: var(--aviation-cyan);
+}
+
+.hud-page-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--aviation-white);
+  letter-spacing: 0.8px;
+}
+
+.hud-page-dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hud-page-dots .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transition: all 0.2s ease;
+}
+
+.hud-page-dots .dot.active {
+  background: var(--aviation-cyan);
+  box-shadow: 0 0 6px var(--aviation-cyan);
+  transform: scale(1.3);
+}
+
+.hud-page-gesture-hint {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.5px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+/* --------------------------------------------------------------------------
+   Main Workspace & Two-Finger Swipe Carousel Slider Track
+   -------------------------------------------------------------------------- */
+#main-workspace {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background-color: #000000;
+  width: 100%;
+  height: 100%;
+}
+
+.screens-track {
+  display: flex;
+  width: 600%; /* 6 distinct full-width screens */
+  height: 100%;
+  transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+  will-change: transform;
+}
+
+.screen-view {
+  width: calc(100% / 6);
+  height: 100%;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  opacity: 0.25;
+  transition: opacity 0.3s ease;
+}
+
+.screen-view.active {
+  opacity: 1;
+}
+
+/* --------------------------------------------------------------------------
+   SCREEN 1: AUTHENTIC PFD LAYOUT & MULTI-VIEW SPLIT PANELS
+   -------------------------------------------------------------------------- */
+.efis-layout-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  position: relative;
+  overflow: hidden;
+}
+
+.efis-map-instrument-cluster {
+  display: none;
+  position: relative;
+  overflow: hidden;
+  background: #000000;
+  width: 100%;
+  height: 100%;
+}
+
+.efis-map-instrument-cluster .map-viewport-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* 1. PORTRAIT SPLIT (PFD + HSI) */
+body.portrait-mode .efis-layout-container {
+  flex-direction: column;
+}
+
+body.portrait-mode .pfd-instrument-cluster {
+  flex: 1.12;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  background: #000000;
+  display: block;
+}
+
+body.portrait-mode .hsi-instrument-cluster {
+  flex: 0.88;
+  width: 100%;
+  position: relative;
+  background: #000000;
+  border-top: 2px solid #000000;
+  display: block;
+}
+
+body.portrait-mode .efis-map-instrument-cluster {
+  display: none !important;
+}
+
+/* 2. LANDSCAPE SPLIT (PFD + HSI) */
+body.landscape-mode .efis-layout-container {
+  flex-direction: row;
+}
+
+body.landscape-mode .pfd-instrument-cluster {
+  flex: 1.15;
+  height: 100%;
+  position: relative;
+  border-right: 2px solid #111827;
+  display: block;
+}
+
+body.landscape-mode .hsi-instrument-cluster {
+  flex: 0.85;
+  height: 100%;
+  position: relative;
+  background: #000000;
+  display: block;
+}
+
+body.landscape-mode .efis-map-instrument-cluster {
+  display: none !important;
+}
+
+/* 3. PORTRAIT SPLIT (PFD + LIVE MAP) */
+body.portrait-map-mode .efis-layout-container {
+  flex-direction: column;
+}
+
+body.portrait-map-mode .pfd-instrument-cluster {
+  flex: 1.12;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  background: #000000;
+  display: block;
+}
+
+body.portrait-map-mode .hsi-instrument-cluster {
+  display: none !important;
+}
+
+body.portrait-map-mode .efis-map-instrument-cluster {
+  flex: 0.88;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: #000000;
+  border-top: 2px solid #111827;
+  display: block !important;
+}
+
+/* 4. LANDSCAPE SPLIT (PFD + LIVE MAP) */
+body.landscape-map-mode .efis-layout-container {
+  flex-direction: row;
+}
+
+body.landscape-map-mode .pfd-instrument-cluster {
+  flex: 1.15;
+  height: 100%;
+  position: relative;
+  border-right: 2px solid #111827;
+  display: block;
+}
+
+body.landscape-map-mode .hsi-instrument-cluster {
+  display: none !important;
+}
+
+body.landscape-map-mode .efis-map-instrument-cluster {
+  flex: 0.85;
+  height: 100%;
+  position: relative;
+  background: #000000;
+  display: block !important;
+}
+
+/* 5. FULLSCREEN PFD (Attitude Director Indicator / Horizon) */
+body.fullscreen-pfd-mode .efis-layout-container {
+  flex-direction: column;
+}
+
+body.fullscreen-pfd-mode .pfd-instrument-cluster {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  display: block !important;
+  border: none;
+}
+
+body.fullscreen-pfd-mode .hsi-instrument-cluster {
+  display: none !important;
+}
+
+body.fullscreen-pfd-mode .efis-map-instrument-cluster {
+  display: none !important;
+}
+
+/* 6. FULLSCREEN HSI (Moving Map Compass & Nav) */
+body.fullscreen-hsi-mode .efis-layout-container {
+  flex-direction: column;
+}
+
+body.fullscreen-hsi-mode .pfd-instrument-cluster {
+  display: none !important;
+}
+
+body.fullscreen-hsi-mode .hsi-instrument-cluster {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  display: block !important;
+  border: none;
+}
+
+body.fullscreen-hsi-mode .efis-map-instrument-cluster {
+  display: none !important;
+}
+
+/* 7. FULLSCREEN LIVE MOVING MAP IN EFIS */
+body.fullscreen-map-mode .efis-layout-container {
+  flex-direction: column;
+}
+
+body.fullscreen-map-mode .pfd-instrument-cluster {
+  display: none !important;
+}
+
+body.fullscreen-map-mode .hsi-instrument-cluster {
+  display: none !important;
+}
+
+body.fullscreen-map-mode .efis-map-instrument-cluster {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  display: block !important;
+  border: none;
+}
+
+/* 2-Second Hold Press Indicator Overlay */
+.hold-indicator-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background: rgba(9, 13, 22, 0.94);
+  border: 2px solid var(--aviation-cyan);
+  border-radius: 12px;
+  padding: 16px 22px;
+  box-shadow: 0 0 30px rgba(0, 229, 255, 0.6);
+  z-index: 150;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.15s ease-out;
+}
+
+.hold-indicator-overlay.hidden {
+  display: none !important;
+}
+
+.hold-ring-wrap {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hold-ring-svg {
+  transform: rotate(-90deg);
+}
+
+.hold-ring-bar {
+  transition: stroke-dashoffset 2s linear;
+}
+
+.hold-ring-bar.active {
+  stroke-dashoffset: 0 !important;
+}
+
+.hold-ring-bar.completed {
+  stroke: var(--aviation-green) !important;
+}
+
+.hold-icon {
+  position: absolute;
+  font-size: 24px;
+  color: var(--aviation-cyan);
+  font-weight: bold;
+}
+
+.hold-text-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 3px;
+}
+
+.hold-title {
+  color: var(--aviation-cyan);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+}
+
+.hold-sub {
+  color: var(--aviation-yellow);
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* ==========================================================================
+   5-Second Long-Press AHRS Zero-Calibration Overlay & Toast
+   ========================================================================== */
+.ahrs-cal-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: rgba(9, 13, 22, 0.95);
+  border: 2px solid #00e676;
+  border-radius: 14px;
+  padding: 18px 24px;
+  box-shadow: 0 0 35px rgba(0, 230, 118, 0.5), 0 4px 25px rgba(0, 0, 0, 0.9);
+  z-index: 160;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  animation: fadeIn 0.15s ease-out;
+  min-width: 220px;
+}
+
+.ahrs-cal-overlay.hidden {
+  display: none !important;
+}
+
+.ahrs-cal-wrap {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ahrs-cal-svg {
+  transform: rotate(-90deg);
+}
+
+.ahrs-cal-bar {
+  transition: stroke-dashoffset 0.1s linear;
+}
+
+.ahrs-cal-center-icon {
+  position: absolute;
+  font-size: 28px;
+  color: #00e676;
+  filter: drop-shadow(0 0 6px #00e676);
+  animation: pulsePlane 1s infinite alternate;
+}
+
+@keyframes pulsePlane {
+  from { transform: scale(1.0); }
+  to { transform: scale(1.15); }
+}
+
+.ahrs-cal-text-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+}
+
+.ahrs-cal-title {
+  color: #00e676;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+}
+
+.ahrs-cal-sub {
+  color: var(--aviation-white);
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.4px;
+  opacity: 0.9;
+}
+
+.ahrs-cal-toast {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 180;
+  background: rgba(0, 230, 118, 0.95);
+  border: 1.5px solid #ffffff;
+  color: #000000;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 10px 18px;
+  border-radius: 6px;
+  box-shadow: 0 4px 25px rgba(0, 230, 118, 0.8), 0 2px 10px rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  animation: toastPop 0.25s ease-out;
+  white-space: nowrap;
+}
+
+.ahrs-cal-toast.hidden {
+  display: none !important;
+}
+
+.ahrs-toast-icon {
+  font-size: 16px;
+}
+
+@keyframes toastPop {
+  from { opacity: 0; transform: translate(-50%, -15px) scale(0.9); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1.0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, -45%) scale(0.95); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+}
+
+.full-pfd-canvas-wrap, .full-hsi-canvas-wrap {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* --------------------------------------------------------------------------
+   LIVE VHF FREQUENCY HUD ON PFD (Top Left Corner Overlay)
+   -------------------------------------------------------------------------- */
+.pfd-freq-hud {
+  position: absolute;
+  top: 8px;
+  left: 64px;
+  background: rgba(9, 13, 22, 0.9);
+  border: 1.5px solid var(--aviation-cyan);
+  border-radius: 6px;
+  padding: 5px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: pointer;
+  z-index: 80;
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.35);
+  font-family: var(--font-mono);
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.pfd-freq-hud:hover {
+  border-color: #ffffff;
+  box-shadow: 0 0 18px rgba(0, 229, 255, 0.6);
+  transform: translateY(-1px);
+}
+
+.freq-hud-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding-bottom: 2px;
+}
+
+.freq-icon {
+  font-size: 11px;
+}
+
+.freq-title {
+  font-size: 9px;
+  font-weight: 900;
+  color: var(--aviation-gray);
+  letter-spacing: 0.5px;
+}
+
+.freq-badge-enroute {
+  background: rgba(0, 229, 255, 0.15);
+  border: 1px solid var(--aviation-cyan);
+  color: var(--aviation-cyan);
+  font-size: 8px;
+  font-weight: bold;
+  padding: 1px 4px;
+  border-radius: 2px;
+  margin-left: auto;
+}
+
+.freq-badge-ctaf {
+  background: rgba(0, 230, 118, 0.2);
+  border: 1px solid var(--aviation-green);
+  color: var(--aviation-green);
+  font-size: 8px;
+  font-weight: bold;
+  padding: 1px 4px;
+  border-radius: 2px;
+  margin-left: auto;
+  animation: pulse 1.5s infinite;
+}
+
+.freq-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.freq-row.active-area {
+  color: var(--aviation-cyan);
+}
+
+.freq-row.active-ctaf {
+  color: var(--aviation-green);
+  font-weight: bold;
+  background: rgba(0, 230, 118, 0.12);
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+.freq-lbl {
+  color: var(--aviation-gray);
+  font-size: 9px;
+  font-weight: bold;
+}
+
+.freq-val {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--aviation-white);
+  font-family: var(--font-mono);
+}
+
+.freq-row.active-ctaf .freq-val {
+  color: var(--aviation-green);
+}
+
+.freq-row.active-area .freq-val {
+  color: var(--aviation-cyan);
+}
+
+.freq-name {
+  font-size: 9px;
+  color: var(--aviation-gray);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   VHF FREQUENCY DIRECTORY MODAL
+   -------------------------------------------------------------------------- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  backdrop-filter: blur(6px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-overlay.hidden {
+  display: none !important;
+}
+
+.freq-modal-card {
+  width: 90%;
+  max-width: 680px;
+  max-height: 85vh;
+  background: #090d16;
+  border: 2px solid var(--aviation-cyan);
+  border-radius: 8px;
+  box-shadow: 0 0 30px rgba(0, 229, 255, 0.4);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--font-mono);
+}
+
+.modal-header {
+  background: #111827;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #1f2937;
+}
+
+.modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-title-group h3 {
+  font-size: 13px;
+  color: var(--aviation-cyan);
+  margin: 0;
+  font-weight: 900;
+}
+
+.freq-modal-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.freq-section-card {
+  background: #000000;
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.freq-section-card.highlight-section {
+  border-color: var(--aviation-cyan);
+  background: linear-gradient(180deg, #071926 0%, #000000 100%);
+}
+
+.section-badge {
+  font-size: 9px;
+  font-weight: bold;
+  color: var(--aviation-cyan);
+  margin-bottom: 6px;
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--aviation-yellow);
+  margin-bottom: 8px;
+}
+
+.fia-details-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.fia-title {
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--aviation-white);
+}
+
+.fia-callsign {
+  font-size: 11px;
+  color: var(--aviation-gray);
+  margin-top: 2px;
+}
+
+.fia-freq-box {
+  background: #111827;
+  border: 1.5px solid var(--aviation-cyan);
+  border-radius: 4px;
+  padding: 4px 10px;
+  text-align: center;
+}
+
+.freq-big {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--aviation-cyan);
+}
+
+.freq-mhz {
+  font-size: 10px;
+  color: var(--aviation-gray);
+  margin-left: 2px;
+}
+
+.fia-boundary-alert {
+  margin-top: 8px;
+  padding: 4px 8px;
+  background: rgba(0, 230, 118, 0.12);
+  border-left: 3px solid var(--aviation-green);
+  color: var(--aviation-green);
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.freq-table-container {
+  overflow-x: auto;
+}
+
+.freq-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.freq-table th {
+  background: #111827;
+  color: var(--aviation-gray);
+  padding: 6px 8px;
+  text-align: left;
+  font-size: 9px;
+  border-bottom: 1px solid #374151;
+}
+
+.freq-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.freq-table tr:hover td {
+  background: rgba(0, 229, 255, 0.05);
+}
+
+.badge-ctaf-active {
+  background: var(--aviation-green);
+  color: #000;
+  font-weight: 900;
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.modal-footer {
+  background: #111827;
+  padding: 8px 14px;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid #1f2937;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* --------------------------------------------------------------------------
+   SCREEN 2: LIVE INTERACTIVE FLIGHT MAP & EMERGENCY DRAWER
+   -------------------------------------------------------------------------- */
+.map-layout-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  position: relative;
+  background: #000000;
+}
+
+.map-viewport-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+#leaflet-flight-map {
+  width: 100%;
+  height: 100%;
+  background: #050811;
+  z-index: 10;
+}
+
+.map-layer-selector {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.85);
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: 1px solid #374151;
+  z-index: 50;
+  font-family: var(--font-mono);
+}
+
+.hud-title {
+  font-size: 10px;
+  color: var(--aviation-gray);
+  font-weight: bold;
+  margin-right: 4px;
+}
+
+.layer-btn {
+  background: #111827;
+  border: 1px solid #374151;
+  color: var(--aviation-white);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.layer-btn.active, .layer-btn:hover {
+  background: var(--aviation-cyan);
+  color: #000;
+  font-weight: bold;
+}
+
+.map-hud-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(9, 13, 22, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid #374151;
+  z-index: 50;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
+  max-height: calc(100% - 20px);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.map-hud-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.hud-menu-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  background: #111827;
+  border: 1px solid #374151;
+  color: var(--aviation-cyan);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 900;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.hud-menu-toggle-btn:hover {
+  background: #1f2937;
+  border-color: var(--aviation-cyan);
+}
+
+.hud-hamburger-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.hud-menu-title {
+  letter-spacing: 0.5px;
+}
+
+.hud-chevron-icon {
+  font-size: 8px;
+  transition: transform 0.25s ease;
+}
+
+.map-hud-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 5px;
+  max-height: 75vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Minimized State */
+.map-hud-controls.minimized {
+  background: rgba(9, 13, 22, 0.85);
+  padding: 3px;
+}
+
+.map-hud-controls.minimized .map-hud-body {
+  display: none !important;
+}
+
+.map-hud-controls.minimized .hud-menu-toggle-btn {
+  width: auto;
+  padding: 6px 10px;
+  background: rgba(17, 24, 39, 0.95);
+}
+
+.map-hud-controls.minimized .hud-chevron-icon {
+  transform: rotate(180deg);
+}
+
+/* Minimize Map Controls drawer in Cockpit Map Split to give maximum moving map visibility */
+.efis-map-instrument-cluster .map-hud-controls:not(.expanded) {
+  background: rgba(9, 13, 22, 0.85);
+  padding: 3px;
+}
+
+.efis-map-instrument-cluster .map-hud-controls:not(.expanded) .map-hud-body {
+  display: none !important;
+}
+
+.efis-map-instrument-cluster .map-hud-controls:not(.expanded) .hud-chevron-icon {
+  transform: rotate(180deg);
+}
+
+.hud-btn {
+  background: #111827;
+  border: 1px solid #374151;
+  color: var(--aviation-cyan);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.hud-btn:hover, .hud-btn.active {
+  background: var(--aviation-cyan);
+  color: #000;
+}
+
+.hud-btn-emergency {
+  background: #b71c1c;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 900;
+  padding: 5px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hud-btn-emergency:hover {
+  background: #d32f2f;
+  border-color: #ffffff;
+}
+
+.hud-btn-emergency.active,
+.hud-btn-emergency.diverting {
+  background: #ff1744;
+  border-color: #ffffff;
+  box-shadow: 0 0 12px rgba(255, 23, 68, 0.8);
+  animation: blink 1.2s infinite;
+}
+
+.hud-btn-home {
+  background: rgba(0, 230, 118, 0.2);
+  border: 1px solid var(--aviation-green);
+  color: var(--aviation-green);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.hud-btn-home:hover {
+  background: var(--aviation-green);
+  color: #000;
+}
+
+/* ==========================================================================
+   ADS-B Altitude & Height Color Legend Key
+   ========================================================================== */
+.map-traffic-legend {
+  background: rgba(9, 13, 22, 0.95);
+  border: 1px solid #374151;
+  border-radius: 4px;
+  padding: 5px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-family: var(--font-mono);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+  transition: all 0.2s ease-in-out;
+}
+
+.map-traffic-legend.hidden {
+  display: none !important;
+}
+
+.legend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 900;
+  color: var(--aviation-cyan);
+  border-bottom: 1px solid #1f2937;
+  padding-bottom: 3px;
+  margin-bottom: 2px;
+  letter-spacing: 0.5px;
+}
+
+.legend-filter-btn {
+  background: #1e293b;
+  border: 1px solid var(--aviation-cyan);
+  color: var(--aviation-cyan);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: bold;
+  padding: 1px 4px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.legend-filter-btn:hover {
+  background: var(--aviation-cyan);
+  color: #000;
+}
+
+.legend-icon {
+  font-size: 10px;
+}
+
+.legend-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.legend-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+}
+
+.legend-range {
+  font-weight: bold;
+  color: var(--aviation-white);
+  flex: 1;
+  white-space: nowrap;
+}
+
+.legend-desc {
+  font-size: 8px;
+  color: var(--aviation-gray);
+  white-space: nowrap;
+}
+
+.legend-item.alert-item {
+  margin-top: 2px;
+  border-top: 1px dashed rgba(255, 23, 68, 0.4);
+  padding-top: 2px;
+}
+
+/* ==========================================================================
+   Weather Overlay Controls, Sliders & Section Dividers
+   ========================================================================== */
+.hud-section-divider {
+  font-size: 8px;
+  font-weight: 900;
+  color: var(--aviation-cyan);
+  letter-spacing: 0.8px;
+  margin-top: 6px;
+  margin-bottom: 2px;
+  padding-top: 4px;
+  border-top: 1px dashed rgba(0, 229, 255, 0.3);
+  text-align: center;
+}
+
+.hud-slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 4px 6px;
+  border-radius: 3px;
+  border: 1px solid #1f2937;
+}
+
+.hud-slider-lbl {
+  font-size: 9px;
+  color: var(--aviation-gray);
+  display: flex;
+  justify-content: space-between;
+}
+
+.hud-slider-lbl strong {
+  color: var(--aviation-cyan);
+}
+
+.hud-slider {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--aviation-cyan);
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   Weather Radar Animation Playback HUD Mini-Bar (Floating Map Widget)
+   ========================================================================== */
+.weather-hud-bar {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 55;
+  background: rgba(9, 13, 22, 0.94);
+  border: 1.5px solid var(--aviation-cyan);
+  border-radius: 6px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-family: var(--font-mono);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 12px rgba(0, 229, 255, 0.3);
+  backdrop-filter: blur(6px);
+  min-width: 190px;
+  transition: opacity 0.2s ease;
+}
+
+.weather-hud-bar.hidden {
+  display: none !important;
+}
+
+.weather-hud-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.weather-play-btn {
+  background: #111827;
+  border: 1px solid var(--aviation-cyan);
+  color: var(--aviation-cyan);
+  font-size: 11px;
+  font-weight: bold;
+  padding: 2px 7px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.weather-play-btn:hover {
+  background: var(--aviation-cyan);
+  color: #000;
+}
+
+.weather-time-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.weather-hud-badge {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--aviation-white);
+  letter-spacing: 0.5px;
+}
+
+.weather-status-pill {
+  font-size: 8px;
+  font-weight: bold;
+  color: #00e676;
+  letter-spacing: 0.4px;
+}
+
+.weather-status-pill.cached {
+  color: var(--aviation-yellow);
+}
+
+.weather-track-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.weather-track-dot {
+  flex: 1;
+  height: 5px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.weather-track-dot.active {
+  background: var(--aviation-cyan);
+  box-shadow: 0 0 6px var(--aviation-cyan);
+}
+
+.weather-legend-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.legend-lbl {
+  font-size: 7.5px;
+  color: #9ca3af;
+  display: flex;
+  justify-content: space-between;
+}
+
+.legend-gradient {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #00e676 0%, #ffea00 35%, #ff9100 65%, #ff1744 85%, #d500f9 100%);
+  border: 1px solid rgba(0, 0, 0, 0.5);
+}
+
+/* ==========================================================================
+   Winds Aloft & Surface Wind Vector Barbs
+   ========================================================================== */
+.leaflet-wind-barb {
+  background: transparent;
+  border: none;
+}
+
+.wind-barb-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform-origin: center center;
+  pointer-events: none;
+}
+
+.wind-arrow-icon {
+  width: 18px;
+  height: 18px;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.9));
+}
+
+.wind-badge-lbl {
+  background: rgba(9, 13, 22, 0.92);
+  border: 1px solid var(--aviation-cyan);
+  color: var(--aviation-white);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 900;
+  padding: 1px 3px;
+  border-radius: 2px;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  margin-top: -2px;
+}
+
+/* ==========================================================================
+   Aerodrome METAR Flight Rules Category Markers (VFR, MVFR, IFR, LIFR)
+   ========================================================================== */
+.metar-marker-icon {
+  background: transparent;
+  border: none;
+}
+
+.metar-dot-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(9, 13, 22, 0.85);
+  border: 1.5px solid #ffffff;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+}
+
+.metar-dot-wrap:hover {
+  transform: scale(1.25);
+  z-index: 1000 !important;
+}
+
+.metar-dot-vfr {
+  background: #00e676;
+  border-color: #00e676;
+  box-shadow: 0 0 8px #00e676;
+}
+
+.metar-dot-mvfr {
+  background: #00e5ff;
+  border-color: #00e5ff;
+  box-shadow: 0 0 8px #00e5ff;
+}
+
+.metar-dot-ifr {
+  background: #ff1744;
+  border-color: #ff1744;
+  box-shadow: 0 0 8px #ff1744;
+}
+
+.metar-dot-lifr {
+  background: #d500f9;
+  border-color: #d500f9;
+  box-shadow: 0 0 8px #d500f9;
+}
+
+.metar-dot-text {
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 900;
+  color: #000000;
+}
+
+/* ==========================================================================
+   METAR Detail Popover & Modal
+   ========================================================================== */
+.metar-modal-card {
+  max-width: 480px;
+}
+
+.metar-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 230, 118, 0.15);
+  border: 1.5px solid #00e676;
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.metar-banner.mvfr {
+  background: rgba(0, 229, 255, 0.15);
+  border-color: #00e5ff;
+}
+
+.metar-banner.ifr {
+  background: rgba(255, 23, 68, 0.15);
+  border-color: #ff1744;
+}
+
+.metar-banner.lifr {
+  background: rgba(213, 0, 249, 0.15);
+  border-color: #d500f9;
+}
+
+.metar-rules-badge {
+  font-size: 14px;
+  font-weight: 900;
+  background: #00e676;
+  color: #000;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.metar-banner.mvfr .metar-rules-badge { background: #00e5ff; }
+.metar-banner.ifr .metar-rules-badge { background: #ff1744; color: #fff; }
+.metar-banner.lifr .metar-rules-badge { background: #d500f9; color: #fff; }
+
+.metar-rules-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metar-rules-summary strong {
+  font-size: 13px;
+  color: var(--aviation-white);
+}
+
+.metar-rules-summary span {
+  font-size: 10px;
+  color: var(--aviation-gray);
+}
+
+.raw-metar-box {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--aviation-yellow);
+  background: #000;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid #1f2937;
+  letter-spacing: 0.8px;
+  word-break: break-all;
+}
+
+.metar-decoded-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.metar-dec-cell {
+  background: #090d16;
+  border: 1px solid #1f2937;
+  border-radius: 4px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metar-lbl {
+  font-size: 8px;
+  font-weight: bold;
+  color: var(--aviation-cyan);
+  letter-spacing: 0.5px;
+}
+
+.metar-val {
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--aviation-white);
+}
+
+/* ==========================================================================
+   ADSBexchange / tar1090 Aircraft Telemetry Inspector Panel
+   ========================================================================== */
+.plane-inspector-drawer {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 330px;
+  max-height: calc(100% - 70px);
+  background: rgba(9, 13, 22, 0.96);
+  border: 1px solid #00e5ff;
+  border-radius: 6px;
+  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.8), 0 0 15px rgba(0, 229, 255, 0.3);
+  z-index: 65;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  backdrop-filter: blur(8px);
+}
+
+.plane-inspector-drawer.hidden {
+  display: none !important;
+}
+
+.inspector-header {
+  background: #111827;
+  padding: 6px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #1f2937;
+}
+
+.insp-title-box {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.insp-callsign {
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--aviation-cyan);
+  letter-spacing: 0.5px;
+}
+
+.insp-hex-badge {
+  font-size: 10px;
+  color: #9ca3af;
+}
+
+.insp-hex-badge strong {
+  color: var(--aviation-yellow);
+}
+
+.insp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-insp-action {
+  background: #1f2937;
+  border: 1px solid #374151;
+  color: #00e5ff;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.btn-insp-action:hover {
+  background: #00e5ff;
+  color: #000;
+}
+
+.inspector-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.insp-photo-box {
+  width: 100%;
+  height: 120px;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  background: #000000;
+  border: 1px solid #1f2937;
+}
+
+.insp-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.insp-photo-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.7);
+  font-size: 8px;
+  color: #9ca3af;
+  padding: 2px 6px;
+  text-align: right;
+}
+
+.insp-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  background: #111827;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #1f2937;
+}
+
+.insp-meta-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.insp-meta-item.full-width {
+  grid-column: span 2;
+}
+
+.insp-lbl {
+  font-size: 8px;
+  color: #9ca3af;
+  text-transform: uppercase;
+}
+
+.insp-val {
+  font-size: 11px;
+  color: #ffffff;
+}
+
+.highlight-squawk {
+  color: var(--aviation-yellow);
+  font-weight: bold;
+}
+
+.insp-section-box {
+  background: #090d16;
+  border: 1px solid #1f2937;
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+
+.insp-section-title {
+  font-size: 9px;
+  font-weight: bold;
+  color: #00e5ff;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #1f2937;
+  padding-bottom: 2px;
+}
+
+.insp-telemetry-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.insp-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+}
+
+.insp-row span {
+  color: #9ca3af;
+}
+
+.insp-row strong {
+  color: #ffffff;
+}
+
+/* Emergency Nearest Airports Drawer */
+.emergency-drawer {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 320px;
+  max-height: calc(100% - 70px);
+  background: rgba(0, 0, 0, 0.95);
+  border: 2px solid var(--aviation-red);
+  border-radius: 6px;
+  box-shadow: 0 0 20px rgba(255, 23, 68, 0.5);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--font-mono);
+}
+
+.emergency-drawer.hidden {
+  display: none;
+}
+
+.drawer-header {
+  background: #b71c1c;
+  color: #ffffff;
+  padding: 6px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.btn-close {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-weight: bold;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.glide-status-bar {
+  background: #111827;
+  padding: 5px 10px;
+  font-size: 10px;
+  color: var(--aviation-yellow);
+  border-bottom: 1px solid #374151;
+}
+
+.nrst-airports-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.airport-card {
+  background: #090d16;
+  border: 1px solid #1f2937;
+  border-radius: 4px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.airport-card:hover {
+  border-color: var(--aviation-cyan);
+}
+
+.airport-card.in-glide-range {
+  border-left: 4px solid var(--aviation-green);
+}
+
+.airport-card.beyond-glide-range {
+  border-left: 4px solid var(--aviation-red);
+}
+
+.apt-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.apt-icao {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--aviation-cyan);
+}
+
+.apt-dist {
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--aviation-yellow);
+}
+
+.apt-name {
+  font-size: 10px;
+  color: var(--aviation-gray);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.apt-details-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--aviation-white);
+  margin-top: 2px;
+}
+
+.apt-badge-glide {
+  display: inline-block;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-size: 9px;
+  font-weight: bold;
+}
+
+.badge-glide-ok {
+  background: rgba(0, 230, 118, 0.2);
+  color: var(--aviation-green);
+  border: 1px solid var(--aviation-green);
+}
+
+.badge-glide-warn {
+  background: rgba(255, 23, 68, 0.2);
+  color: var(--aviation-red);
+  border: 1px solid var(--aviation-red);
+}
+
+.btn-divert-now {
+  margin-top: 4px;
+  background: var(--aviation-red);
+  color: #ffffff;
+  border: none;
+  border-radius: 3px;
+  padding: 4px;
+  font-weight: bold;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.btn-divert-now:hover {
+  background: #ff1744;
+}
+
+/* Map Route Bar */
+.map-route-bar {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid #374151;
+  border-radius: 4px;
+  padding: 6px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 50;
+}
+
+/* Minimized Map Route Bar & Action Buttons in Cockpit View */
+.efis-map-instrument-cluster .map-route-bar {
+  bottom: 4px;
+  left: 4px;
+  right: 4px;
+  padding: 3px 6px;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.efis-map-instrument-cluster .route-info-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.efis-map-instrument-cluster .route-title {
+  font-size: 9px;
+  margin-right: 4px;
+}
+
+.efis-map-instrument-cluster .route-metrics {
+  font-size: 8px;
+}
+
+.efis-map-instrument-cluster .route-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.efis-map-instrument-cluster .route-actions button {
+  padding: 2px 5px;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.btn-label-short {
+  display: none;
+}
+
+.btn-label-long {
+  display: inline;
+}
+
+.efis-map-instrument-cluster .btn-label-long {
+  display: none !important;
+}
+
+.efis-map-instrument-cluster .btn-label-short {
+  display: inline !important;
+}
+
+.efis-map-instrument-cluster #btn-add-waypoint,
+.efis-map-instrument-cluster #btn-show-nrst-list,
+.efis-map-instrument-cluster #btn-clear-route {
+  display: none !important; /* Keep cockpit map split ultra clean */
+}
+
+.route-title {
+  color: var(--aviation-white);
+  font-weight: bold;
+  font-size: 12px;
+  margin-right: 10px;
+}
+
+.route-metrics {
+  color: var(--aviation-magenta);
+  font-size: 11px;
+}
+
+.btn-cyan {
+  background: rgba(0, 229, 255, 0.15);
+  border: 1px solid var(--aviation-cyan);
+  color: var(--aviation-cyan);
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.btn-cyan:hover {
+  background: var(--aviation-cyan);
+  color: #000;
+}
+
+.btn-magenta {
+  background: rgba(224, 64, 251, 0.15);
+  border: 1px solid var(--aviation-magenta);
+  color: var(--aviation-magenta);
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.btn-magenta:hover {
+  background: var(--aviation-magenta);
+  color: #000;
+}
+
+/* Route Lock Toggle Button & HUD Pill Badge */
+.btn-lock-route {
+  background: rgba(0, 229, 255, 0.12);
+  border: 1px solid var(--aviation-cyan);
+  color: var(--aviation-cyan);
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.btn-lock-route:hover {
+  background: rgba(0, 229, 255, 0.25);
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.3);
+}
+
+.btn-lock-route.locked,
+.btn-lock-route.active {
+  background: #ffd54f !important;
+  border-color: #ffd54f !important;
+  color: #000000 !important;
+  font-weight: 900;
+  box-shadow: 0 0 10px rgba(255, 213, 79, 0.4);
+}
+
+.btn-lock-route.locked:hover,
+.btn-lock-route.active:hover {
+  background: #ffea00 !important;
+  border-color: #ffea00 !important;
+}
+
+.route-lock-badge {
+  background: rgba(0, 229, 255, 0.12);
+  border: 1px solid rgba(0, 229, 255, 0.4);
+  color: #00e5ff;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: bold;
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.route-lock-badge:hover {
+  border-color: #00e5ff;
+  background: rgba(0, 229, 255, 0.22);
+}
+
+.route-lock-badge.locked,
+.route-lock-badge.active {
+  background: rgba(255, 213, 79, 0.2) !important;
+  border-color: #ffd54f !important;
+  color: #ffd54f !important;
+  font-weight: 900;
+  box-shadow: 0 0 8px rgba(255, 213, 79, 0.3);
+}
+
+.btn-green {
+  background: var(--aviation-green);
+  border: none;
+  color: #000;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.btn-yellow {
+  background: rgba(255, 235, 59, 0.15);
+  border: 1px solid var(--aviation-yellow);
+  color: var(--aviation-yellow);
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.btn-yellow:hover {
+  background: var(--aviation-yellow);
+  color: #000;
+}
+
+/* --------------------------------------------------------------------------
+   SCREEN 3: Blackbox Recorder & Logbook
+   -------------------------------------------------------------------------- */
+.recorder-layout-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  gap: 8px;
+  background: #000000;
+}
+
+.recorder-control-card {
+  background: #090d16;
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.recorder-control-card h3 {
+  color: var(--aviation-cyan);
+  font-size: 13px;
+}
+
+.recorder-control-card p {
+  color: var(--aviation-gray);
+  font-size: 11px;
+}
+
+.btn-rec-start {
+  background: var(--aviation-green);
+  border: none;
+  color: #000;
+  font-weight: bold;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+}
+
+.btn-rec-start.recording {
+  background: var(--aviation-red);
+  color: #fff;
+  animation: pulse 1s infinite;
+}
+
+.logbook-split-view {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.logbook-list-card {
+  flex: 0.8;
+  background: #090d16;
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.logbook-detail-card {
+  flex: 1.2;
+  background: #090d16;
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 6px 10px;
+  background: #111827;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--aviation-cyan);
+}
+
+.flight-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.telemetry-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.metric-item {
+  background: #111827;
+  padding: 4px 6px;
+  border-radius: 3px;
+  border: 1px solid #1f2937;
+}
+
+.metric-item label {
+  display: block;
+  color: var(--aviation-gray);
+  font-size: 9px;
+}
+
+.metric-item span {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--aviation-white);
+}
+
+.telemetry-chart-container {
+  flex: 1;
+  min-height: 150px;
+  background: #000;
+  border: 1px solid #1f2937;
+  border-radius: 4px;
+}
+
+.export-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.export-label {
+  font-size: 10px;
+  color: var(--aviation-gray);
+  font-weight: bold;
+}
+
+.btn-export {
+  background: #111827;
+  border: 1px solid var(--aviation-cyan);
+  color: var(--aviation-cyan);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.btn-export:hover {
+  background: var(--aviation-cyan);
+  color: #000;
+}
+
+/* --------------------------------------------------------------------------
+   SCREEN 4 & 5: Calibration & Settings (with Home Airport & Turn Coord Configuration)
+   -------------------------------------------------------------------------- */
+.cal-layout-container, .settings-layout-container {
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+  overflow-y: auto;
+  background: #000000;
+}
+
+.cal-card, .settings-card {
+  background: #090d16;
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.settings-card.highlight-card {
+  border: 1.5px solid var(--aviation-green);
+  background: linear-gradient(180deg, #091a12 0%, #090d16 100%);
+}
+
+.settings-card.highlight-card-blue {
+  border: 1.5px solid var(--aviation-cyan);
+  background: linear-gradient(180deg, #071926 0%, #090d16 100%);
+}
+
+.cal-card h3, .settings-card h3 {
+  color: var(--aviation-cyan);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.settings-card.highlight-card h3 {
+  color: var(--aviation-green);
+}
+
+.settings-card.highlight-card-blue h3 {
+  color: var(--aviation-cyan);
+}
+
+.cal-card p, .settings-card p {
+  color: var(--aviation-gray);
+  font-size: 10px;
+  margin-bottom: 10px;
+}
+
+.home-airport-status {
+  background: #000000;
+  border: 1px solid #1f2937;
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.home-badge {
+  font-size: 9px;
+  font-weight: bold;
+  color: var(--aviation-green);
+  letter-spacing: 0.5px;
+}
+
+.home-val-title {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--aviation-white);
+  margin-top: 2px;
+}
+
+.home-val-sub {
+  font-size: 10px;
+  color: var(--aviation-gray);
+  margin-top: 2px;
+}
+
+.setting-dropdown {
+  width: 100%;
+  background: #111827;
+  border: 1px solid #374151;
+  color: var(--aviation-white);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+  outline: none;
+}
+
+.setting-dropdown:focus {
+  border-color: var(--aviation-green);
+}
+
+.cal-readouts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+
+.cal-readouts div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.qnh-input-group label {
+  font-size: 10px;
+  color: var(--aviation-gray);
+  display: block;
+  margin-bottom: 3px;
+}
+
+.input-row {
+  display: flex;
+  gap: 5px;
+}
+
+.input-row input {
+  background: #000;
+  border: 1px solid #374151;
+  color: var(--aviation-white);
+  font-family: var(--font-mono);
+  padding: 4px 6px;
+  border-radius: 3px;
+  flex: 1;
+}
+
+.profile-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.profile-chip {
+  background: #111827;
+  border: 1px solid #374151;
+  color: var(--aviation-white);
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  font-family: var(--font-mono);
+}
+
+.profile-chip:hover {
+  border-color: var(--aviation-cyan);
+}
+
+.profile-chip.active {
+  background: var(--aviation-cyan);
+  color: #000;
+  font-weight: bold;
+  border-color: var(--aviation-cyan);
+}
+
+.profile-chip.custom-chip {
+  border-left: 3px solid var(--aviation-yellow);
+}
+
+.profile-chip.custom-chip.active {
+  border-left: 3px solid #000;
+}
+
+.profile-chip-delete {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 1px 4px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.profile-chip.active .profile-chip-delete {
+  color: #000;
+}
+
+.profile-chip-delete:hover {
+  background: #ff1744;
+  color: #fff;
+}
+
+/* Custom Profile Modal Form Styles */
+.custom-profile-modal-card {
+  max-width: 620px;
+  width: 95%;
+}
+
+.profile-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 12px;
+}
+
+.profile-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.profile-input-group.full-width {
+  grid-column: 1 / -1;
+}
+
+.profile-input-group label {
+  font-size: 10px;
+  color: var(--aviation-gray);
+  font-weight: bold;
+}
+
+.profile-input-group input,
+.profile-input-group select {
+  background: #000000;
+  border: 1px solid #374151;
+  color: var(--aviation-white);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.profile-input-group input:focus,
+.profile-input-group select:focus {
+  border-color: var(--aviation-cyan);
+  box-shadow: 0 0 6px rgba(0, 229, 255, 0.3);
+}
+
+@media (max-width: 600px) {
+  .profile-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.vspeed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  gap: 5px;
+}
+
+.vspeed-cell {
+  background: #111827;
+  padding: 4px;
+  border-radius: 3px;
+  text-align: center;
+}
+
+.vspeed-cell .v-label {
+  display: block;
+  color: var(--aviation-gray);
+  font-size: 8px;
+}
+
+.vspeed-cell .v-val {
+  color: var(--aviation-green);
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.unit-toggle-row, .alert-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 11px;
+}
+
+.unit-btn {
+  background: #111827;
+  border: 1px solid #374151;
+  color: var(--aviation-gray);
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.unit-btn.active {
+  background: var(--aviation-cyan);
+  color: #000;
+  font-weight: bold;
+  border-color: var(--aviation-cyan);
+}
+
+/* --------------------------------------------------------------------------
+   SCREEN 6: Test Suite
+   -------------------------------------------------------------------------- */
+.tests-layout-container {
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #000000;
+}
+
+.test-results-log {
+  flex: 1;
+  background: #000;
+  border: 1px solid #1f2937;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 11px;
+  overflow-y: auto;
+  line-height: 1.5;
+}
+
+.test-pass {
+  color: var(--aviation-green);
+}
+
+.test-fail {
+  color: var(--aviation-red);
+}
+
+/* --------------------------------------------------------------------------
+   Interactive Simulation Dock (Bottom)
+   -------------------------------------------------------------------------- */
+#sim-control-dock {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  height: 42px;
+  background: #090d16;
+  border-top: 1px solid #1f2937;
+  padding: 0 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  z-index: 100;
+}
+
+.dock-column {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dock-label {
+  color: var(--aviation-gray);
+}
+
+.sim-stick-controls {
+  display: flex;
+  gap: 3px;
+}
+
+.sim-btn {
+  background: #111827;
+  border: 1px solid #374151;
+  color: var(--aviation-white);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.sim-btn:hover, .sim-btn.active {
+  background: var(--aviation-cyan);
+  color: #000;
+  font-weight: bold;
+}
+
+#throttle-slider {
+  width: 80px;
+  accent-color: var(--aviation-green);
+}
+
+/* --------------------------------------------------------------------------
+   Master Navigation Footer (Bottom Tabs)
+   -------------------------------------------------------------------------- */
+#cockpit-footer-nav {
+  display: flex;
+  height: 44px;
+  background: #000000;
+  border-top: 1px solid #1f2937;
+  z-index: 100;
+}
+
+.nav-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--aviation-gray);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-sans);
+}
+
+.nav-tab:hover {
+  color: var(--aviation-white);
+}
+
+.nav-tab.active {
+  background: rgba(0, 229, 255, 0.08);
+  color: var(--aviation-cyan);
+  border-top: 2px solid var(--aviation-cyan);
+}
+
+.nav-icon {
+  font-size: 13px;
+  margin-bottom: 1px;
+}
+
+.nav-text {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* --------------------------------------------------------------------------
+   Scrollable Card Viewport & Touch Pan Configuration
+   -------------------------------------------------------------------------- */
+.settings-layout-container,
+.cal-layout-container,
+.flight-list,
+.freq-modal-body,
+.test-results-log,
+.traffic-directory-table-container,
+.tests-layout-container,
+.recorder-layout-container {
+  touch-action: pan-y !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Mobile & Tablet Viewport Fit (100dvh Zero Overflow)
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  /* Remove persistent bottom tab bar on mobile/tablet to maximize cockpit space */
+  #cockpit-footer-nav {
+    display: none !important;
+  }
+
+  /* Minimize or hide secondary sim stick dock to give 100% height to instruments */
+  #sim-control-dock {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  #cockpit-header {
+    height: 32px;
+    padding: 0 4px;
+    font-size: 9.5px;
+  }
+
+  .header-left, .header-right, .header-center {
+    gap: 4px;
+  }
+
+  .btn-svt {
+    display: none !important;
+  }
+
+  #adsb-status {
+    padding: 1px 4px;
+    font-size: 9px;
+  }
+
+  #adsb-status .dot-traffic {
+    width: 5px;
+    height: 5px;
+    margin-right: 2px;
+  }
+
+  .btn-emergency {
+    font-size: 9.5px;
+    padding: 2px 6px;
+  }
+
+  #btn-toggle-orientation {
+    font-size: 8.5px;
+    padding: 2px 4px;
+  }
+
+  .btn-fullscreen {
+    padding: 2px 5px;
+    font-size: 9.5px;
+  }
+
+  /* Minimized VHF Radio Intel on mobile */
+  .pfd-freq-hud {
+    top: 4px;
+    left: 48px;
+    padding: 2px 5px;
+    gap: 2px;
+    max-width: 130px;
+    border-radius: 4px;
+  }
+
+  .pfd-freq-hud .freq-title,
+  .pfd-freq-hud .freq-name {
+    display: none;
+  }
+
+  .pfd-freq-hud .freq-row {
+    font-size: 8.5px;
+    gap: 3px;
+  }
+
+  .pfd-freq-hud .freq-val {
+    font-size: 10.5px;
+  }
+}
+
+/* Split-Map Viewport Minimized Controls */
+body.portrait-map-mode .pfd-freq-hud,
+body.landscape-map-mode .pfd-freq-hud {
+  top: 4px;
+  left: 48px;
+  padding: 2px 5px;
+  gap: 2px;
+  max-width: 135px;
+  border-radius: 4px;
+}
+
+body.portrait-map-mode .pfd-freq-hud .freq-title,
+body.landscape-map-mode .pfd-freq-hud .freq-title,
+body.portrait-map-mode .pfd-freq-hud .freq-name,
+body.landscape-map-mode .pfd-freq-hud .freq-name {
+  display: none;
+}
+
+body.portrait-map-mode .pfd-freq-hud .freq-row,
+body.landscape-map-mode .pfd-freq-hud .freq-row {
+  font-size: 8.5px;
+  gap: 3px;
+}
+
+body.portrait-map-mode .pfd-freq-hud .freq-val,
+body.landscape-map-mode .pfd-freq-hud .freq-val {
+  font-size: 10.5px;
+}
+
+/* Completely suppress weather playback HUD bar from EFIS Cockpit Map split */
+.efis-map-instrument-cluster #weather-hud-bar {
+  display: none !important;
+}
+
+/* Landscape Viewport Fit */
+@media (orientation: landscape) {
+  #cockpit-footer-nav {
+    display: none !important;
+  }
+
+  #sim-control-dock {
+    display: none !important;
+  }
+}

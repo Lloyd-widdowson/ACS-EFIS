@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#050811">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ACS EFIS">
+  <meta name="application-name" content="ACS EFIS">
+  <title>ACS EFIS & FMS - Aviation Flight Management System</title>
+  
+  <!-- Standard Favicons & Desktop / Browser Shortcuts -->
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="48x48" href="favicon-48x48.png">
+  <link rel="shortcut icon" href="favicon.ico">
+
+  <!-- Apple iOS Touch Icons (iPhone / iPad Home Screen) -->
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152x152.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="apple-touch-icon-167x167.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+
+  <!-- OpenGraph & Social / App Store Meta Tags -->
+  <meta property="og:title" content="ACS EFIS & FMS - Aviation Flight Management System">
+  <meta property="og:description" content="Professional Glass Cockpit Primary Flight Display (PFD), Navigation Moving Map, ADS-B Traffic Radar & Australian VNC/VTC Airspace Suite.">
+  <meta property="og:image" content="og-image.png">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="ACS EFIS & FMS">
+  <meta name="twitter:description" content="Professional Glass Cockpit Primary Flight Display & Australian VNC/VTC Moving Map.">
+  <meta name="twitter:image" content="og-image.png">
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- Leaflet Interactive Maps CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="portrait-mode">
+  <div id="app-container">
+    
+    <!-- Top Cockpit Status Bar with View Switcher, ADS-B Status & Emergency Quick Action -->
+    <header id="cockpit-header">
+      <div class="header-left">
+        <div class="status-indicator live" id="gps-status"><span class="dot"></span> GPS 3D</div>
+        <div class="status-indicator ok" id="ahrs-status">AHRS 60Hz</div>
+        
+        <!-- Live ADS-B Traffic Status Pill (Clickable) -->
+        <div class="status-indicator traffic-live" id="adsb-status" title="Click for ADS-B Traffic Radar Directory">
+          <span class="dot-traffic"></span> <span id="adsb-status-text">ADS-B: 6 TRK</span>
+        </div>
+
+        <!-- Garmin SVT Synthetic Vision View Switcher -->
+        <div class="view-mode-toggle">
+          <button id="btn-toggle-svt" class="btn-svt active" title="Toggle Garmin Synthetic Vision & Map Backdrop">
+            3D SYNTHETIC VISION + MAP
+          </button>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <button id="btn-emergency-nrst" class="btn-emergency" title="Emergency Direct-To Nearest Airport">
+          🚨 EMERGENCY (NRST)
+        </button>
+        <div id="warning-banner" class="hidden">STALL WARNING</div>
+        <div id="traffic-warning-banner" class="traffic-warning-banner hidden">TRAFFIC ADVISORY</div>
+        <div id="airspace-warning-banner" class="airspace-warning-banner hidden">AIRSPACE ALERT</div>
+      </div>
+
+      <div class="header-right">
+        <div class="time-display" id="zulu-clock">23:02 UTC</div>
+        <div class="battery-display" id="battery-status">100%</div>
+        <div class="orientation-toggle">
+          <button id="btn-toggle-orientation" title="Click or Long-Press Screen (2s) to Cycle Orientations">⟲ PORTRAIT SPLIT</button>
+        </div>
+        <button id="btn-toggle-fullscreen" class="btn-fullscreen" title="Toggle Fullscreen Mode (Hide Mobile Bars)">⛶</button>
+      </div>
+    </header>
+
+    <!-- Temporary Subtle HUD Page Pill Indicator -->
+    <div id="hud-page-indicator" class="hud-page-indicator hidden">
+      <div class="hud-page-pill">
+        <span class="hud-page-icon" id="hud-page-icon">⬡</span>
+        <span class="hud-page-name" id="hud-page-name">PRIMARY FLIGHT DISPLAY</span>
+        <div class="hud-page-dots" id="hud-page-dots">
+          <span class="dot active"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+      </div>
+      <div class="hud-page-gesture-hint">✌ TWO-FINGER SWIPE ◀ ▶ TO SWITCH PAGES</div>
+    </div>
+
+    <!-- Main Workspace Container -->
+    <main id="main-workspace">
+      <div id="screens-track" class="screens-track">
+        
+        <!-- SCREEN 1: PRIMARY FLIGHT DISPLAY (PFD & HSI WITH SYNTHETIC TERRAIN & TURN COORDINATOR) -->
+        <section id="screen-pfd" class="screen-view active">
+        <div class="efis-layout-container" id="pfd-layout-container">
+          
+          <!-- Upper Half / Fullscreen: Master Attitude Director Indicator -->
+          <div class="pfd-instrument-cluster">
+            <div class="full-pfd-canvas-wrap">
+              <canvas id="canvas-pfd-master"></canvas>
+
+              <!-- Live VHF Frequency Intelligence HUD Banner on PFD -->
+              <div id="pfd-freq-hud" class="pfd-freq-hud" title="Click for Aeronautical Frequency Directory">
+                <div class="freq-hud-header">
+                  <span class="freq-icon">📻</span>
+                  <span class="freq-title">VHF RADIO INTEL</span>
+                  <span id="freq-zone-badge" class="freq-badge-enroute">EN-ROUTE FIA</span>
+                </div>
+                <div class="freq-row active-area" id="freq-row-area">
+                  <span class="freq-lbl">AREA:</span>
+                  <strong class="freq-val" id="freq-val-area">124.000</strong>
+                  <span class="freq-name" id="freq-name-area">(Sydney Centre)</span>
+                </div>
+                <div class="freq-row" id="freq-row-ctaf">
+                  <span class="freq-lbl">CTAF:</span>
+                  <strong class="freq-val" id="freq-val-ctaf">118.100</strong>
+                  <span class="freq-name" id="freq-name-ctaf">(YTRE 4.2 NM)</span>
+                </div>
+              </div>
+
+              <!-- PFD TCAS Traffic Alert Banner -->
+              <div id="pfd-traffic-callout" class="pfd-traffic-callout hidden">
+                <span class="traffic-callout-icon">⚠</span>
+                <span id="pfd-traffic-callout-text">TRAFFIC 2 O'CLOCK, 2.4 NM, +400 FT</span>
+              </div>
+
+              <!-- PFD Airspace Penetration & Proximity Warning Callout -->
+              <div id="pfd-airspace-callout" class="pfd-airspace-callout hidden">
+                <span class="airspace-callout-icon">🛡</span>
+                <span id="pfd-airspace-callout-text">INSIDE RESTRICTED R585A (SFC-FL180)</span>
+              </div>
+
+              <!-- 5-Second Long-Press AHRS Zero-Calibration Overlay -->
+              <div id="ahrs-cal-overlay" class="ahrs-cal-overlay hidden">
+                <div class="ahrs-cal-wrap">
+                  <svg class="ahrs-cal-svg" width="100" height="100" viewBox="0 0 100 100">
+                    <circle class="ahrs-cal-bg" cx="50" cy="50" r="42" stroke="rgba(255,255,255,0.15)" stroke-width="5" fill="none" />
+                    <circle class="ahrs-cal-bar" id="ahrs-cal-progress" cx="50" cy="50" r="42" stroke="#00e676" stroke-width="5" stroke-linecap="round" fill="none" stroke-dasharray="263.89" stroke-dashoffset="263.89" />
+                  </svg>
+                  <div class="ahrs-cal-center-icon">✈</div>
+                </div>
+                <div class="ahrs-cal-text-group">
+                  <div class="ahrs-cal-title" id="ahrs-cal-title">CALIBRATING AHRS: 5s</div>
+                  <div class="ahrs-cal-sub" id="ahrs-cal-sub">HOLD STEADY IN LEVEL CRUISE ATTITUDE</div>
+                </div>
+              </div>
+
+              <!-- AHRS Zero Calibration Success Toast -->
+              <div id="ahrs-cal-toast" class="ahrs-cal-toast hidden">
+                <span class="ahrs-toast-icon">✓</span>
+                <span id="ahrs-toast-msg">AHRS ZEROED TO CRADLE POSITION</span>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Lower Half / Fullscreen: Master HSI -->
+          <div class="hsi-instrument-cluster">
+            <div class="full-hsi-canvas-wrap">
+              <canvas id="canvas-hsi-master"></canvas>
+            </div>
+          </div>
+
+          <!-- Lower Half / Fullscreen: Live Moving Map in EFIS View -->
+          <div class="efis-map-instrument-cluster" id="efis-map-instrument-cluster">
+            <!-- Map mounts here when in MAP SPLIT or FULL MAP mode on EFIS -->
+          </div>
+
+          <!-- Interactive 2-Second Hold Press Indicator Overlay -->
+          <div id="hold-indicator-overlay" class="hold-indicator-overlay hidden">
+            <div class="hold-ring-wrap">
+              <svg class="hold-ring-svg" width="80" height="80" viewBox="0 0 80 80">
+                <circle class="hold-ring-bg" cx="40" cy="40" r="34" stroke="rgba(255,255,255,0.15)" stroke-width="4" fill="none" />
+                <circle class="hold-ring-bar" id="hold-ring-progress" cx="40" cy="40" r="34" stroke="#00e5ff" stroke-width="4" stroke-linecap="round" fill="none" stroke-dasharray="213.63" stroke-dashoffset="213.63" />
+              </svg>
+              <div class="hold-icon">⟲</div>
+            </div>
+            <div class="hold-text-box">
+              <span class="hold-title" id="hold-status-title">HOLD 2s TO SWITCH ORIENTATION</span>
+              <span class="hold-sub" id="hold-status-sub">Next: Full Screen PFD (ADI)</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- SCREEN 2: LIVE INTERACTIVE AVIATION MOVING MAP WITH AIRPORTS & ADS-B TRAFFIC -->
+      <section id="screen-map" class="screen-view">
+        <div class="map-layout-container" id="screen-map-container">
+          <div class="map-viewport-wrapper" id="map-viewport-wrapper">
+            
+            <div id="leaflet-flight-map"></div>
+
+            <div class="map-layer-selector">
+              <span class="hud-title">MAP LAYER:</span>
+              <button class="layer-btn active" data-layer="dark">Aeronautical Dark</button>
+              <button class="layer-btn" data-layer="satellite">Satellite Hybrid</button>
+              <button class="layer-btn" data-layer="topo">Terrain / Topo</button>
+              <button class="layer-btn" data-layer="vfr">VFR OpenAIP</button>
+            </div>
+
+            <!-- Enhanced Map HUD Controls with Collapsible 3-Line Menu Button -->
+            <div id="map-hud-controls" class="map-hud-controls">
+              <div class="map-hud-header">
+                <button id="btn-toggle-map-hud" class="hud-menu-toggle-btn" title="Toggle / Minimise Map Options (☰)" aria-label="Toggle Map Controls Menu">
+                  <span class="hud-hamburger-icon">☰</span>
+                  <span class="hud-menu-title">MAP CONTROLS</span>
+                  <span class="hud-chevron-icon" id="hud-menu-chevron">▲</span>
+                </button>
+              </div>
+
+              <!-- Collapsible Toggle Options Body (Displayed by default) -->
+              <div id="map-hud-body" class="map-hud-body">
+                <button id="btn-map-emergency" class="hud-btn-emergency">🚨 DIVERT NEAREST</button>
+                <button id="btn-map-direct-home" class="hud-btn-home">⭐ DIRECT HOME</button>
+                <button id="btn-map-recenter" class="hud-btn">✈ Center Ship</button>
+                <button id="btn-map-lock-route" class="hud-btn" title="Toggle Route Edit Protection">🔓 Route: Unlocked</button>
+                <button id="btn-map-traffic" class="hud-btn active">ADS-B Traffic: ON</button>
+                
+                <!-- ADS-B Traffic Altitude & Height Color Legend -->
+                <div id="map-traffic-altitude-legend" class="map-traffic-legend">
+                  <div class="legend-header">
+                    <div style="display:flex; align-items:center; gap:4px;">
+                      <span class="legend-icon">✈</span>
+                      <span class="legend-title">ALTITUDE KEY</span>
+                    </div>
+                    <button id="btn-map-traffic-filter" class="legend-filter-btn" title="Cycle Altitude Filter: ALL / NORMAL / ABOVE / BELOW">FLT: ALL</button>
+                  </div>
+                  <div class="legend-items">
+                    <div class="legend-item">
+                      <span class="legend-swatch" style="background:#e040fb; box-shadow:0 0 5px #e040fb;"></span>
+                      <span class="legend-range">≥ 30k ft</span>
+                      <span class="legend-desc">FL300+</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-swatch" style="background:#2979ff; box-shadow:0 0 5px #2979ff;"></span>
+                      <span class="legend-range">20k-30k ft</span>
+                      <span class="legend-desc">FL200</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-swatch" style="background:#00e5ff; box-shadow:0 0 5px #00e5ff;"></span>
+                      <span class="legend-range">10k-20k ft</span>
+                      <span class="legend-desc">FL100</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-swatch" style="background:#00e676; box-shadow:0 0 5px #00e676;"></span>
+                      <span class="legend-range">3k-10k ft</span>
+                      <span class="legend-desc">Cruise</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-swatch" style="background:#ffd54f; box-shadow:0 0 5px #ffd54f;"></span>
+                      <span class="legend-range">&lt; 3,000 ft</span>
+                      <span class="legend-desc">Low GA</span>
+                    </div>
+                    <div class="legend-item alert-item">
+                      <span class="legend-swatch" style="background:#ff1744; box-shadow:0 0 5px #ff1744;"></span>
+                      <span class="legend-range" style="color:#ff1744; font-weight:bold;">TCAS Alert</span>
+                      <span class="legend-desc" style="color:#ff1744;">Threat</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button id="btn-map-live-feed" class="hud-btn" title="Toggle Live OpenSky / ADSB Network Feed">🌐 Web Feed: OFF</button>
+                <button id="btn-map-airports" class="hud-btn active">Airports: ON</button>
+                <button id="btn-map-vhf-areas" class="hud-btn active">VHF Areas: ON</button>
+                <button id="btn-map-ctaf-rings" class="hud-btn active">CTAF Rings: ON</button>
+                <button id="btn-map-glide-ring" class="hud-btn active">Glide Ring: ON</button>
+                <button id="btn-map-range-rings" class="hud-btn active">Range Rings: ON</button>
+
+                <!-- Australian VNC & VTC Airspace Boundary Overlay & Legend -->
+                <div class="hud-section-divider">AUSTRALIAN VNC &amp; VTC AIRSPACE (AIRAC)</div>
+                <button id="btn-map-airspaces" class="hud-btn active" title="Toggle Australian VNC / VTC Airspace Boundaries Overlay">🗺 Airspace: ON</button>
+                <button id="btn-map-chart-mode" class="hud-btn active" style="border-color:#00e5ff; color:#00e5ff;" title="Cycle Chart Mode: VNC (Regional) / VTC (Terminal) / HYBRID (Auto Zoom)">🗺 Chart: HYBRID (Auto)</button>
+                <button id="btn-map-vfr-waypoints" class="hud-btn active" title="Toggle VFR Inbound Visual Reporting Points">📍 VFR Waypoints: ON</button>
+                
+                <div id="map-airspace-vnc-legend" class="map-traffic-legend">
+                  <div class="legend-header">
+                    <div style="display:flex; align-items:center; gap:4px;">
+                      <span class="legend-icon">🛡</span>
+                      <span class="legend-title">AIRAC AIRSPACE KEY</span>
+                    </div>
+                    <button id="btn-map-airspace-filter" class="legend-filter-btn" title="Cycle Airspace Filter: ALL / RESTRICTED & MIL / CONTROLLED / VTC">FLT: ALL</button>
+                  </div>
+                  <div class="legend-items">
+                    <div class="legend-item">
+                      <span class="legend-swatch" style="background:#0080ff; box-shadow:0 0 5px #0080ff;"></span>
+                      <span class="legend-range">Class C / D</span>
+                      <span class="legend-desc">CTA / CTR</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-swatch" style="background:#c00080; box-shadow:0 0 5px #c00080;"></span>
+                      <span class="legend-range">Military CTR</span>
+                      <span class="legend-desc">MIL RAAF</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-swatch" style="background:#cc0033; box-shadow:0 0 5px #cc0033;"></span>
+                      <span class="legend-range" style="color:#ff5252; font-weight:bold;">Restricted</span>
+                      <span class="legend-desc" style="color:#ff5252;">PRD (R)</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-swatch" style="background:#ff4500; box-shadow:0 0 5px #ff4500;"></span>
+                      <span class="legend-range" style="color:#ff9100;">Danger Area</span>
+                      <span class="legend-desc" style="color:#ff9100;">PRD (D)</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-swatch" style="background:#8b4513; box-shadow:0 0 5px #8b4513;"></span>
+                      <span class="legend-range">Class E</span>
+                      <span class="legend-desc">LL 4.5k+</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Weather Overlay Toggles & Opacity -->
+                <div class="hud-section-divider">WEATHER &amp; RADAR</div>
+                <button id="btn-map-weather-radar" class="hud-btn active" title="Toggle Animated RainViewer Precipitation Radar Overlay">🌧 Rain Radar: ON</button>
+                <button id="btn-map-wind-vectors" class="hud-btn active" title="Toggle Surface &amp; Aloft Wind Vector Barbs">💨 Wind Barbs: ON</button>
+                <button id="btn-map-metar" class="hud-btn active" title="Toggle Aerodrome VFR/IFR Flight Rules Dots">📡 METAR Rules: ON</button>
+                <div class="hud-slider-row">
+                  <span class="hud-slider-lbl">Radar Opacity: <strong id="val-radar-opacity">65%</strong></span>
+                  <input type="range" id="slider-radar-opacity" min="10" max="100" value="65" class="hud-slider" title="Adjust Weather Radar Opacity">
+                </div>
+              </div>
+            </div>
+
+            <!-- Weather Radar Animation Playback HUD Mini-Bar -->
+            <div id="weather-hud-bar" class="weather-hud-bar">
+              <div class="weather-hud-controls">
+                <button id="btn-weather-play-pause" class="weather-play-btn" title="Play / Pause Radar Loop">⏸</button>
+                <div class="weather-time-info">
+                  <span class="weather-hud-badge" id="weather-frame-time">LIVE</span>
+                  <span class="weather-status-pill" id="weather-source-status">● LIVE RADAR</span>
+                </div>
+              </div>
+              <div class="weather-track-container" id="weather-track-dots">
+                <!-- Populated dynamically with past radar frame scrubber dots -->
+              </div>
+              <div class="weather-legend-bar">
+                <span class="legend-lbl">20 dBZ (Light)</span>
+                <div class="legend-gradient"></div>
+                <span class="legend-lbl">65 dBZ (Severe)</span>
+              </div>
+            </div>
+
+            <!-- ADSBexchange Style Aircraft Telemetry Inspector Drawer -->
+            <div id="plane-inspector-drawer" class="plane-inspector-drawer hidden">
+              <div class="inspector-header">
+                <div class="insp-title-box">
+                  <span class="insp-callsign" id="insp-callsign">ANZ291</span>
+                  <span class="insp-hex-badge">Hex: <strong id="insp-hex">C82347</strong></span>
+                </div>
+                <div class="insp-header-actions">
+                  <button id="btn-insp-follow" class="btn-insp-action" title="Follow Aircraft on Map">🎯 Follow</button>
+                  <button id="btn-close-inspector" class="btn-close">✕</button>
+                </div>
+              </div>
+
+              <div class="inspector-content">
+                <!-- Aircraft Photo Frame -->
+                <div class="insp-photo-box">
+                  <img id="insp-photo-img" src="" alt="Aircraft Photo" class="insp-photo">
+                  <div class="insp-photo-overlay" id="insp-photo-caption">Image © Aviation Spotter</div>
+                </div>
+
+                <!-- Registration & Classification -->
+                <div class="insp-meta-grid">
+                  <div class="insp-meta-item">
+                    <span class="insp-lbl">Reg:</span>
+                    <strong class="insp-val" id="insp-reg">ZK-NZI</strong>
+                  </div>
+                  <div class="insp-meta-item">
+                    <span class="insp-lbl">Country:</span>
+                    <strong class="insp-val" id="insp-country">New Zealand 🇳🇿</strong>
+                  </div>
+                  <div class="insp-meta-item full-width">
+                    <span class="insp-lbl">Type:</span>
+                    <strong class="insp-val" id="insp-type">BOEING 787-9 Dreamliner (B789)</strong>
+                  </div>
+                  <div class="insp-meta-item">
+                    <span class="insp-lbl">Type Desc:</span>
+                    <strong class="insp-val" id="insp-type-desc">L2J (Twin Jet)</strong>
+                  </div>
+                  <div class="insp-meta-item">
+                    <span class="insp-lbl">Squawk:</span>
+                    <strong class="insp-val highlight-squawk" id="insp-squawk">1057</strong>
+                  </div>
+                  <div class="insp-meta-item full-width">
+                    <span class="insp-lbl">Route:</span>
+                    <strong class="insp-val" id="insp-route">Auckland (AKL) → Sydney (SYD)</strong>
+                  </div>
+                </div>
+
+                <!-- Spatial Telemetry Table -->
+                <div class="insp-section-box">
+                  <div class="insp-section-title">SPATIAL TELEMETRY</div>
+                  <div class="insp-telemetry-rows">
+                    <div class="insp-row"><span>Groundspeed:</span> <strong id="insp-speed">555 kt</strong></div>
+                    <div class="insp-row"><span>Baro. Altitude:</span> <strong id="insp-alt-baro">37,000 ft</strong></div>
+                    <div class="insp-row"><span>WGS84 Altitude:</span> <strong id="insp-alt-geom">38,100 ft</strong></div>
+                    <div class="insp-row"><span>Vert. Rate (V/S):</span> <strong id="insp-vs">-32 ft/min</strong></div>
+                    <div class="insp-row"><span>Track Heading:</span> <strong id="insp-track">121.0°</strong></div>
+                    <div class="insp-row"><span>Coordinates:</span> <strong id="insp-pos">-31.564°, 152.844°</strong></div>
+                    <div class="insp-row"><span>Dist from Ship:</span> <strong id="insp-dist" style="color:#00e5ff;">34.2 NM @ 042°</strong></div>
+                    <div class="insp-row"><span>Relative Alt:</span> <strong id="insp-rel-alt" style="color:#00e5ff;">+33,500 ft Above</strong></div>
+                  </div>
+                </div>
+
+                <!-- Signal & Data Source -->
+                <div class="insp-section-box">
+                  <div class="insp-section-title">SIGNAL &amp; ADS-B SOURCE</div>
+                  <div class="insp-telemetry-rows">
+                    <div class="insp-row"><span>Data Source:</span> <strong>ADS-B (1090ES Mode S)</strong></div>
+                    <div class="insp-row"><span>Signal RSSI:</span> <strong id="insp-rssi">-27.3 dBFS</strong></div>
+                    <div class="insp-row"><span>Message Rate:</span> <strong id="insp-msg-rate">2.7 msg/s</strong></div>
+                    <div class="insp-row"><span>Last Seen:</span> <strong id="insp-last-seen" style="color:#00e676;">0.1s ago</strong></div>
+                  </div>
+                </div>
+
+                <!-- FMS / Autopilot Targets -->
+                <div class="insp-section-box">
+                  <div class="insp-section-title">FMS AUTOPILOT TARGETS</div>
+                  <div class="insp-telemetry-rows">
+                    <div class="insp-row"><span>Target Selected Alt:</span> <strong id="insp-fms-alt">37,000 ft</strong></div>
+                    <div class="insp-row"><span>Target Selected Hdg:</span> <strong id="insp-fms-hdg">120.0°</strong></div>
+                    <div class="insp-row"><span>Threat Assessment:</span> <strong id="insp-threat-badge" class="badge-threat-none">NO THREAT</strong></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="emergency-nrst-drawer" class="emergency-drawer hidden">
+              <div class="drawer-header">
+                <span class="emergency-title">🚨 NEAREST AIRPORTS (DIRECT-TO DIVERT)</span>
+                <button id="btn-close-nrst-drawer" class="btn-close">✕</button>
+              </div>
+              <div class="glide-status-bar" id="glide-status-bar">
+                Current Alt: <strong id="nrst-alt-val">3,416 ft</strong> | Best Glide: <strong>9:1 (5.3 NM Max Range)</strong>
+              </div>
+              <div class="nrst-airports-list" id="nrst-airports-list"></div>
+            </div>
+
+            <div class="map-route-bar">
+              <div class="route-info-text">
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  <span class="route-title" id="map-route-name">YTRE → CROWDY → CAMDEN-HVN → YPMQ</span>
+                  <button id="map-route-lock-badge" class="route-lock-badge unlocked" title="Tap to Toggle Route Lock">[ 🔓 ROUTE UNLOCKED ]</button>
+                </div>
+                <span class="route-metrics" id="map-route-metrics">Total: 42.5 NM | ETE: 00:20:15</span>
+              </div>
+              <div class="route-actions">
+                <button id="btn-show-traffic-dir" class="btn-cyan"><span class="btn-icon">✈</span> <span class="btn-label-long">ADS-B Traffic</span><span class="btn-label-short">ADS-B</span></button>
+                <button id="btn-show-freq-dir" class="btn-cyan"><span class="btn-icon">📻</span> <span class="btn-label-long">VHF Directory</span><span class="btn-label-short">VHF</span></button>
+                <button id="btn-lock-route" class="btn-lock-route unlocked" title="Toggle Route Edit Protection (Prevents accidental map taps from adding fixes)">🔓 Route Unlocked (Tap to Fix)</button>
+                <button id="btn-add-waypoint" class="btn-cyan">+ Click Map to Add Fix</button>
+                <button id="btn-show-nrst-list" class="btn-yellow">📍 Nearest Airports</button>
+                <button id="btn-clear-route" class="btn-magenta">Reset Route</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN 3: FLIGHT RECORDER & LOGBOOK -->
+      <section id="screen-recorder" class="screen-view">
+        <div class="recorder-layout-container">
+          <div class="recorder-control-card">
+            <div class="rec-card-info">
+              <h3>BLACKBOX FLIGHT DATA RECORDER</h3>
+              <p>Automatic Trigger: GPS Ground Speed &gt; 20 kt | Sample Rate: 5 Hz (Full 15-axis Telemetry)</p>
+            </div>
+            <div class="rec-card-actions">
+              <button id="btn-rec-toggle" class="btn-rec-start">● START RECORDING</button>
+            </div>
+          </div>
+
+          <div class="logbook-split-view">
+            <div class="logbook-list-card">
+              <div class="card-header">SAVED FLIGHT LOGS</div>
+              <div class="flight-list" id="saved-flights-list"></div>
+            </div>
+
+            <div class="logbook-detail-card">
+              <div class="card-header">FLIGHT TELEMETRY ANALYSIS</div>
+              <div id="flight-detail-content">
+                <div class="telemetry-metrics-grid" id="detail-metrics-grid">
+                  <div class="metric-item"><label>Departure</label><span id="det-dep">YTRE</span></div>
+                  <div class="metric-item"><label>Destination</label><span id="det-dest">YPMQ</span></div>
+                  <div class="metric-item"><label>Duration</label><span id="det-dur">00:42:00</span></div>
+                  <div class="metric-item"><label>Distance</label><span id="det-dist">42.5 mi</span></div>
+                  <div class="metric-item"><label>Max Speed</label><span id="det-speed">126 kt</span></div>
+                  <div class="metric-item"><label>Max Altitude</label><span id="det-alt">3,416 ft</span></div>
+                  <div class="metric-item"><label>Peak G-Load</label><span id="det-g">+1.0G / +1.0G</span></div>
+                  <div class="metric-item"><label>Sample Points</label><span id="det-samples">4,920 pts</span></div>
+                </div>
+
+                <div class="telemetry-chart-container">
+                  <canvas id="canvas-telemetry-chart"></canvas>
+                </div>
+
+                <div class="export-actions-row">
+                  <span class="export-label">EXPORT FORMATS:</span>
+                  <button id="btn-export-gpx" class="btn-export">GPX 1.1 (Aviation XML)</button>
+                  <button id="btn-export-kml" class="btn-export">KML (Google Earth 3D)</button>
+                  <button id="btn-export-csv" class="btn-export">CSV (Flight Data Table)</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN 4: AHRS CALIBRATION & SENSOR HEALTH -->
+      <section id="screen-calibration" class="screen-view">
+        <div class="cal-layout-container">
+          <div class="cal-card highlight-card">
+            <h3>📱 0. HARDWARE SENSOR &amp; TELEMETRY SOURCE</h3>
+            <p>Toggle between built-in flight simulation mode and real-world mobile device sensors (Live GPS receiver, DeviceOrientation gyro &amp; G-force accelerometer) for in-cockpit flight testing.</p>
+            <div class="cal-readouts">
+              <div><span>Active Source:</span> <strong id="sensor-source-label" style="color:#00e5ff;">VIRTUAL SIMULATOR</strong></div>
+              <div><span>GPS Coordinates:</span> <strong id="sensor-gps-coords">-31.8986°, 152.5142°</strong></div>
+              <div><span>AHRS Attitude:</span> <strong id="sensor-ahrs-readout">Pitch 0.0° | Roll 0.0°</strong></div>
+            </div>
+            <button id="btn-toggle-sensor-source" class="btn-green" style="width:100%; margin-top:8px;">
+              🔄 SWITCH TO LIVE PHONE SENSORS (GPS + AHRS)
+            </button>
+          </div>
+
+          <div class="cal-card">
+            <h3>1. ATTITUDE HORIZON ZERO &amp; CRADLE CALIBRATION</h3>
+            <p>Position the aircraft in straight-and-level cruise attitude. One-tap leveling or <strong>5-second long-press on the Artificial Horizon</strong> zeroes out mount tilt angles.</p>
+            <div class="cal-readouts">
+              <div><span>Pitch Offset:</span> <strong id="cal-pitch-val">0.0°</strong></div>
+              <div><span>Roll Offset:</span> <strong id="cal-roll-val">0.0°</strong></div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              <button id="btn-cal-zero-level" class="btn-cyan" style="flex:1;">ZERO LEVEL HORIZON</button>
+              <button id="btn-cal-reset-offsets" class="btn-yellow" style="flex:1;" title="Reset Pitch &amp; Roll Offsets to Factory 0.0°">RESET TO 0.0°</button>
+            </div>
+          </div>
+
+          <div class="cal-card">
+            <h3>2. ALTIMETER &amp; QNH SETTING</h3>
+            <p>Calibrate barometric altitude against current airport ATIS QNH or sync to GPS 3D altitude.</p>
+            <div class="qnh-input-group">
+              <label>QNH Barometer Setting:</label>
+              <div class="input-row">
+                <input type="number" id="input-qnh" value="1022" step="1">
+                <button id="btn-set-qnh" class="btn-cyan">Set QNH</button>
+              </div>
+            </div>
+            <button id="btn-sync-gps-alt" class="btn-green">SYNC TO GPS ALTITUDE</button>
+          </div>
+
+          <div class="cal-card">
+            <h3>3. AHRS SENSOR FUSION &amp; JITTER DAMPING</h3>
+            <p>Adaptive Exponential Moving Average (EMA), noise deadband thresholding, and circular magnetometer stabilization stop stationary horizon jitter and compass hunting.</p>
+            <div class="cal-readouts">
+              <div><span>Filter Preset:</span> <strong id="cal-filter-preset-label" style="color:#00e5ff;">BALANCED (α=0.20, Deadband=0.06°)</strong></div>
+              <div><span>Heading Stabilization:</span> <strong>Circular Shortest-Arc EMA</strong></div>
+              <div><span>UI Decoupling:</span> <strong style="color:#00e676;">60 FPS Frame Interpolation (LERP)</strong></div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              <button id="btn-cal-ahrs-damping" class="btn-cyan" style="flex:2;">FILTER PRESET: BALANCED (SMOOTH)</button>
+              <button id="btn-cal-reset" class="btn-yellow" style="flex:1;">RESET SENSORS</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN 5: SETTINGS, HOME AIRPORT & AIRCRAFT PROFILES -->
+      <section id="screen-settings" class="screen-view">
+        <div class="settings-layout-container">
+          
+          <!-- Home Airport Setting -->
+          <div class="settings-card highlight-card">
+            <h3>⭐ PRIMARY HOME AIRPORT / OPERATING BASE</h3>
+            <p>Set your permanent home aerodrome. The app will prioritize this airport on maps, navigation shortcuts, and emergency return-to-base protocols.</p>
+            
+            <div class="home-airport-status">
+              <div class="home-badge">ACTIVE HOME BASE:</div>
+              <div class="home-val-title" id="home-apt-display">YTRE - Taree Airport (NSW)</div>
+              <div class="home-val-sub" id="home-apt-details">Elev: 37 ft | CTAF: 118.100 MHz | Rwy: 04/22 (4,934 ft)</div>
+            </div>
+
+            <div class="home-select-group">
+              <label>Select from Australian Aerodromes:</label>
+              <select id="select-home-airport" class="setting-dropdown"></select>
+            </div>
+
+            <div class="custom-home-toggle">
+              <button id="btn-save-home-airport" class="btn-green" style="width:100%; margin-top:8px;">
+                ✓ SAVE HOME AIRPORT
+              </button>
+            </div>
+          </div>
+
+          <!-- ADS-B Live Traffic & Collision Avoidance Settings -->
+          <div class="settings-card highlight-card-blue">
+            <h3>📡 ADS-B TRAFFIC &amp; COLLISION AVOIDANCE</h3>
+            
+            <div class="unit-toggle-row">
+              <div>
+                <strong>ADS-B Live Traffic Tracking:</strong>
+                <div style="font-size:9px; color:#9ca3af;">Display real-time traffic chevrons &amp; trend vectors</div>
+              </div>
+              <button id="btn-cfg-traffic" class="unit-btn active">ENABLED (ON)</button>
+            </div>
+
+            <div class="unit-toggle-row">
+              <div>
+                <strong>Data Source Ingestion:</strong>
+                <div style="font-size:9px; color:#9ca3af;">GDL90 UDP (Port 4000) / Web Cellular / Simulator</div>
+              </div>
+              <button id="btn-cfg-traffic-source" class="unit-btn active">GDL90 + SIM (Dual)</button>
+            </div>
+
+            <div class="unit-toggle-row">
+              <div>
+                <strong>Traffic Altitude Filter:</strong>
+                <div style="font-size:9px; color:#9ca3af;">Filter out high-altitude traffic above/below ownship</div>
+              </div>
+              <button id="btn-cfg-traffic-filter" class="unit-btn active">NORMAL (±3,000 FT)</button>
+            </div>
+
+            <div class="unit-toggle-row">
+              <div>
+                <strong>Simulate Traffic Collision Target:</strong>
+                <div style="font-size:9px; color:#9ca3af;">Inject test converging traffic target to test TCAS</div>
+              </div>
+              <button id="btn-inject-threat" class="btn-magenta" style="padding:4px 8px; font-size:10px;">⚡ INJECT THREAT</button>
+            </div>
+          </div>
+
+          <!-- Synthetic Vision & Turn Coordinator Settings -->
+          <div class="settings-card highlight-card-blue">
+            <h3>INSTRUMENTATION &amp; TURN COORDINATOR DISPLAY</h3>
+            
+            <!-- Orientation Mode Selection in Settings -->
+            <div class="unit-toggle-row">
+              <div>
+                <strong>Cockpit Orientation / Screen Layout:</strong>
+                <div style="font-size:9px; color:#9ca3af;">Hold press 2s on screen or click to switch modes</div>
+              </div>
+              <button id="btn-cfg-orientation" class="unit-btn active">PORTRAIT SPLIT</button>
+            </div>
+
+            <!-- Turn Coordinator Toggle -->
+            <div class="unit-toggle-row">
+              <div>
+                <strong>Turn Coordinator (Turn &amp; Slip Ball):</strong>
+                <div style="font-size:9px; color:#9ca3af;">Miniature airplane roll indicator + slip/skid capsule tube</div>
+              </div>
+              <button id="btn-cfg-turn-coord" class="unit-btn active">ENABLED (ON)</button>
+            </div>
+
+            <!-- G-Meter Load Readout Toggle -->
+            <div class="unit-toggle-row">
+              <div>
+                <strong>G-Meter Load Factor Readout:</strong>
+                <div style="font-size:9px; color:#9ca3af;">Live G-force load reading box on EFIS display</div>
+              </div>
+              <button id="btn-cfg-g-meter" class="unit-btn active">ENABLED (ON)</button>
+            </div>
+
+            <div class="unit-toggle-row">
+              <span>3D Terrain Synthetic Vision:</span>
+              <button id="btn-cfg-svt" class="unit-btn active">ENABLED (Garmin 3D)</button>
+            </div>
+            
+            <div class="unit-toggle-row">
+              <span>Moving Map Backdrop on HSI:</span>
+              <button id="btn-cfg-map-bg" class="unit-btn active">ENABLED</button>
+            </div>
+            
+            <div class="unit-toggle-row">
+              <span>Flight Path Marker (Target O):</span>
+              <button id="btn-cfg-fpm" class="unit-btn active">VISIBLE</button>
+            </div>
+
+            <!-- 5s Long-Press AHRS Horizon Leveling Toggle -->
+            <div class="unit-toggle-row">
+              <div>
+                <strong>Long-Press Horizon to Level AHRS (5s):</strong>
+                <div style="font-size:9px; color:#9ca3af;">Continuous 5-second press on Artificial Horizon calibrates mount tilt</div>
+              </div>
+              <button id="btn-cfg-longpress-cal" class="unit-btn active">ENABLED (ON)</button>
+            </div>
+
+            <!-- AHRS Jitter Filter & Heading Damping Preset -->
+            <div class="unit-toggle-row">
+              <div>
+                <strong>AHRS Jitter Filter &amp; Heading Damping:</strong>
+                <div style="font-size:9px; color:#9ca3af;">Adaptive EMA low-pass filter &amp; circular compass stabilization</div>
+              </div>
+              <button id="btn-cfg-ahrs-damping" class="unit-btn active">BALANCED (SMOOTH)</button>
+            </div>
+
+            <!-- VHF Area & CTAF Layer Toggles in Settings -->
+            <div class="unit-toggle-row">
+              <div>
+                <strong>VHF Area Boundaries &amp; CTAF Zones:</strong>
+                <div style="font-size:9px; color:#9ca3af;">Show FIA sector polygons &amp; 10 NM aerodrome rings</div>
+              </div>
+              <button id="btn-cfg-vhf-layers" class="unit-btn active">ENABLED (ALL)</button>
+            </div>
+          </div>
+
+          <!-- Aviation Weather & Real-Time Radar Settings -->
+          <div class="settings-card highlight-card-blue">
+            <h3>AVIATION WEATHER &amp; LIVE RADAR OVERLAY</h3>
+            
+            <div class="unit-toggle-row">
+              <div>
+                <strong>Live Precipitation Radar (RainViewer):</strong>
+                <div style="font-size:9px; color:#9ca3af;">Animated dynamic Doppler rainfall and cloud intensity loop</div>
+              </div>
+              <button id="btn-cfg-weather-radar" class="unit-btn active">ENABLED (ON)</button>
+            </div>
+
+            <div class="unit-toggle-row">
+              <div>
+                <strong>Winds Aloft &amp; Surface Wind Barbs:</strong>
+                <div style="font-size:9px; color:#9ca3af;">Live wind speed and direction vectors along route</div>
+              </div>
+              <button id="btn-cfg-wind-vectors" class="unit-btn active">ENABLED (ON)</button>
+            </div>
+
+            <div class="unit-toggle-row">
+              <div>
+                <strong>Aerodrome METAR Station Dots:</strong>
+                <div style="font-size:9px; color:#9ca3af;">Color-coded VFR / MVFR / IFR / LIFR flight category indicators</div>
+              </div>
+              <button id="btn-cfg-metar" class="unit-btn active">ENABLED (ON)</button>
+            </div>
+
+            <div class="unit-toggle-row">
+              <div>
+                <strong>Radar Opacity:</strong>
+                <div style="font-size:9px; color:#9ca3af;">Balance weather visibility with aeronautical chart readability</div>
+              </div>
+              <input type="range" id="cfg-slider-radar-opacity" min="10" max="100" value="65" style="width:120px;" title="Radar Opacity">
+            </div>
+          </div>
+
+          <!-- Aircraft Profiles -->
+          <div class="settings-card highlight-card-blue">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <h3 style="margin:0;">ACTIVE AIRCRAFT PROFILE</h3>
+              <button id="btn-open-custom-profile-modal" class="btn-cyan" style="font-size:10px; padding:2px 8px;" title="Create and Save a New Aircraft Profile">➕ ADD CUSTOM PLANE</button>
+            </div>
+            <p style="font-size:9px; color:var(--aviation-gray); margin-bottom:8px;">
+              Tailor V-speeds, glide performance, and callsigns. Selecting an aircraft automatically updates airspeed tape color arcs, glide range rings, and stall warning alerts.
+            </p>
+            <div class="profile-chips" id="profile-chips-container">
+              <!-- Dynamically populated with default + custom profiles -->
+            </div>
+          </div>
+
+          <!-- V-Speeds -->
+          <div class="settings-card">
+            <h3>CRITICAL V-SPEED THRESHOLDS (Knots)</h3>
+            <div class="vspeed-grid">
+              <div class="vspeed-cell"><span class="v-label">Vso (Flaps Stall)</span><span class="v-val" id="v-so">40 kt</span></div>
+              <div class="vspeed-cell"><span class="v-label">Vs (Clean Stall)</span><span class="v-val" id="v-s">48 kt</span></div>
+              <div class="vspeed-cell"><span class="v-label">Vx (Best Angle)</span><span class="v-val" id="v-x">62 kt</span></div>
+              <div class="vspeed-cell"><span class="v-label">Vy (Best Rate)</span><span class="v-val" id="v-y">74 kt</span></div>
+              <div class="vspeed-cell"><span class="v-label">Vfe (Max Flaps)</span><span class="v-val" id="v-fe">85 kt</span></div>
+              <div class="vspeed-cell"><span class="v-label">Vno (Max Cruise)</span><span class="v-val" id="v-no">129 kt</span></div>
+              <div class="vspeed-cell"><span class="v-label">Vne (Never Exceed)</span><span class="v-val" id="v-ne">163 kt</span></div>
+            </div>
+          </div>
+
+          <!-- Units -->
+          <div class="settings-card">
+            <h3>UNITS &amp; FORMATTING</h3>
+            <div class="unit-toggle-row">
+              <span>Speed Unit:</span>
+              <button id="btn-unit-speed" class="unit-btn">KNOTS (kt)</button>
+            </div>
+            <div class="unit-toggle-row">
+              <span>Altitude Unit:</span>
+              <button id="btn-unit-alt" class="unit-btn">FEET (ft)</button>
+            </div>
+            <div class="unit-toggle-row">
+              <span>Distance Unit:</span>
+              <button id="btn-unit-dist" class="unit-btn">STATUTE MILES (mi)</button>
+            </div>
+            <div class="unit-toggle-row">
+              <span>Pressure Unit:</span>
+              <button id="btn-unit-press" class="unit-btn">HPA (hPa)</button>
+            </div>
+          </div>
+
+          <!-- Audio Warnings -->
+          <div class="settings-card">
+            <h3>COCKPIT AUDIO ALERTS</h3>
+            <div class="alert-toggle-row">
+              <label><input type="checkbox" id="chk-stall-horn" checked> Stall Warning Horn (Vs clean / flaps)</label>
+            </div>
+            <div class="alert-toggle-row">
+              <label><input type="checkbox" id="chk-overspeed-alarm" checked> Overspeed Siren (Vne Never Exceed)</label>
+            </div>
+            <div class="alert-toggle-row">
+              <label><input type="checkbox" id="chk-glimit-alarm" checked> G-Load Structural Limit Alarm (+3.8G / -1.5G)</label>
+            </div>
+            <div class="alert-toggle-row">
+              <label><input type="checkbox" id="chk-ctaf-alert" checked> CTAF Inbound Broadcast Alert (10 NM Radius)</label>
+            </div>
+            <div class="alert-toggle-row">
+              <label><input type="checkbox" id="chk-tcas-voice" checked> TCAS Audio Voice Traffic Warnings ("Traffic, Traffic!")</label>
+            </div>
+          </div>
+
+          <!-- ACS EFIS & FMS System Info & Branding -->
+          <div class="settings-card highlight-card">
+            <div style="display:flex; align-items:center; gap:16px;">
+              <img src="icon-192.png" alt="ACS EFIS & FMS" style="width:64px; height:64px; border-radius:12px; border:2px solid #00e5ff; background:#fff; object-fit:contain; padding:2px; flex-shrink:0;">
+              <div>
+                <h3 style="margin:0 0 4px 0; color:#fff; font-size:16px;">ACS EFIS &amp; FMS</h3>
+                <div style="font-size:11px; color:#00e5ff; font-weight:600;">Next-Gen Glass Cockpit Suite v3.2.0</div>
+                <div style="font-size:10px; color:#9ca3af; margin-top:2px;">Australian VNC/VTC AIRAC • ADS-B In • AHRS Sensor Fusion</div>
+              </div>
+            </div>
+            <div style="margin-top:10px; padding-top:8px; border-top:1px solid #1e293b; font-size:10px; color:#9ca3af; line-height:1.4;">
+              Install to Home Screen or Desktop via your browser menu for full-screen standalone avionics mode with offline support.
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- SCREEN 6: AUTOMATED TEST SUITE -->
+      <section id="screen-tests" class="screen-view">
+        <div class="tests-layout-container">
+          <div class="tests-header">
+            <h3>AUTOMATED UNIT &amp; MATHEMATICAL VALIDATION SUITE</h3>
+            <button id="btn-run-tests" class="btn-cyan">▶ RUN ALL TESTS</button>
+          </div>
+          <div id="test-results-container" class="test-results-log"></div>
+        </div>
+      </section>
+
+      </div>
+    </main>
+
+    <!-- Interactive ADS-B Live Traffic Radar Directory Modal -->
+    <div id="traffic-directory-modal" class="modal-overlay hidden">
+      <div class="freq-modal-card">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <span class="modal-icon">✈</span>
+            <h3>ADS-B LIVE TRAFFIC &amp; COLLISION AVOIDANCE RADAR</h3>
+          </div>
+          <button id="btn-close-traffic-modal" class="btn-close">✕</button>
+        </div>
+
+        <div class="freq-modal-body">
+          <div class="traffic-status-strip">
+            <div>RECEIVER: <strong style="color:#00e5ff;">GDL90 UDP (Port 4000) / Active Sim</strong></div>
+            <div>STATUS: <strong style="color:#00e676;">100% SIGNAL (60Hz)</strong></div>
+            <div>TRACKING: <strong id="modal-traffic-count" style="color:#ffeb3b;">6 TARGETS</strong></div>
+          </div>
+
+          <div class="freq-section-card">
+            <div class="section-title">AIRBORNE TARGETS WITHIN 35 NM (SORTED BY CLOSENESS)</div>
+            <div class="freq-table-container">
+              <table class="freq-table">
+                <thead>
+                  <tr>
+                    <th>CALLSIGN / ICAO</th>
+                    <th>TYPE / EMITTER</th>
+                    <th>ALTITUDE (MSL)</th>
+                    <th>V/S</th>
+                    <th>DIST / BRG</th>
+                    <th>SPEED</th>
+                    <th>Δ ALT</th>
+                    <th>THREAT STATUS</th>
+                  </tr>
+                </thead>
+                <tbody id="traffic-targets-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="btn-traffic-inject-modal" class="btn-yellow" style="margin-right:auto;">⚡ Test Collision Target</button>
+          <button id="btn-traffic-close-footer" class="btn-cyan">Close Traffic Radar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Interactive VHF Aeronautical Radio Frequency Directory Modal -->
+    <div id="frequency-directory-modal" class="modal-overlay hidden">
+      <div class="freq-modal-card">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <span class="modal-icon">📻</span>
+            <h3>AERONAUTICAL VHF FREQUENCY DIRECTORY</h3>
+          </div>
+          <button id="btn-close-freq-modal" class="btn-close">✕</button>
+        </div>
+
+        <div class="freq-modal-body">
+          <!-- Active En-Route FIA Area -->
+          <div class="freq-section-card highlight-section">
+            <div class="section-badge">CURRENT EN-ROUTE FLIGHT INFORMATION AREA (FIA):</div>
+            <div class="fia-details-row">
+              <div>
+                <div class="fia-title" id="modal-fia-name">Sydney Centre (Area 20 - Mid North Coast)</div>
+                <div class="fia-callsign">Callsign: <strong id="modal-fia-callsign">Sydney Centre</strong> | Alt: <strong>SFC - 10,000 FT</strong></div>
+              </div>
+              <div class="fia-freq-box">
+                <span class="freq-big" id="modal-fia-freq">124.000</span>
+                <span class="freq-mhz">MHz</span>
+              </div>
+            </div>
+            <div class="fia-boundary-alert" id="modal-boundary-alert">
+              ✓ INSIDE SECTOR BOUNDARY (Next: Brisbane Centre 120.550 in 48 NM)
+            </div>
+          </div>
+
+          <!-- Nearby CTAFs & Aerodrome Frequencies Table -->
+          <div class="freq-section-card">
+            <div class="section-title">NEARBY AERODROME RADIO FREQUENCIES (WITHIN 40 NM)</div>
+            <div class="freq-table-container">
+              <table class="freq-table">
+                <thead>
+                  <tr>
+                    <th>AERODROME</th>
+                    <th>DIST / BRG</th>
+                    <th>CTAF / TWR</th>
+                    <th>AWIS / ATIS</th>
+                    <th>RUNWAYS</th>
+                    <th>STATUS</th>
+                  </tr>
+                </thead>
+                <tbody id="nearby-freq-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="btn-freq-close-footer" class="btn-cyan">Close Directory</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aerodrome Decoded METAR & Weather Intel Modal -->
+    <div id="metar-detail-modal" class="modal-overlay hidden">
+      <div class="freq-modal-card metar-modal-card">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <span class="modal-icon">📡</span>
+            <h3 id="metar-modal-title">AERODROME WEATHER &amp; METAR INTEL</h3>
+          </div>
+          <button id="btn-close-metar-modal" class="btn-close">✕</button>
+        </div>
+
+        <div class="freq-modal-body">
+          <!-- Flight Rules Category Badge Banner -->
+          <div class="metar-banner" id="metar-flight-rules-banner">
+            <span class="metar-rules-badge" id="metar-rules-badge">VFR</span>
+            <div class="metar-rules-summary">
+              <strong id="metar-apt-ident">YTRE - Taree Aerodrome</strong>
+              <span id="metar-rules-desc">Visual Flight Rules: Ceiling &gt; 3,000 ft, Visibility &gt; 10 km</span>
+            </div>
+          </div>
+
+          <!-- Raw METAR / SPECI Observation String -->
+          <div class="freq-section-card highlight-section">
+            <div class="section-badge">OFFICIAL AVIATION ROUTINE REPORT (METAR)</div>
+            <div class="raw-metar-box" id="raw-metar-text">METAR YTRE 150330Z 16007KT 9999 FEW035 19/12 Q1018</div>
+          </div>
+
+          <!-- Decoded Meteorological Parameters Grid -->
+          <div class="freq-section-card">
+            <div class="section-badge">DECODED OBSERVATIONS</div>
+            <div class="metar-decoded-grid">
+              <div class="metar-dec-cell">
+                <span class="metar-lbl">SURFACE WIND</span>
+                <strong class="metar-val" id="metar-wind-val">160° @ 07 kt (Calm)</strong>
+              </div>
+              <div class="metar-dec-cell">
+                <span class="metar-lbl">VISIBILITY</span>
+                <strong class="metar-val" id="metar-vis-val">&gt; 10 km (6+ SM)</strong>
+              </div>
+              <div class="metar-dec-cell">
+                <span class="metar-lbl">CLOUD CEILING</span>
+                <strong class="metar-val" id="metar-cloud-val">FEW 3,500 ft (Scattered)</strong>
+              </div>
+              <div class="metar-dec-cell">
+                <span class="metar-lbl">TEMP / DEW POINT</span>
+                <strong class="metar-val" id="metar-temp-val">+19°C / +12°C</strong>
+              </div>
+              <div class="metar-dec-cell">
+                <span class="metar-lbl">ALTIMETER / QNH</span>
+                <strong class="metar-val" id="metar-qnh-val">1018 hPa (30.06 inHg)</strong>
+              </div>
+              <div class="metar-dec-cell">
+                <span class="metar-lbl">ELEVATION / CTAF</span>
+                <strong class="metar-val" id="metar-elev-val">37 ft | CTAF 118.100</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="btn-metar-direct-to" class="btn-magenta">✈ Direct-To Airport</button>
+          <button id="btn-close-metar-footer" class="btn-cyan">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Interactive Custom Aircraft Profile Creator Modal -->
+    <div id="custom-profile-modal" class="modal-overlay hidden">
+      <div class="freq-modal-card custom-profile-modal-card">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <span class="modal-icon">✈</span>
+            <h3>CREATE &amp; SAVE CUSTOM AIRCRAFT PROFILE</h3>
+          </div>
+          <button id="btn-close-custom-profile-modal" class="btn-close">✕</button>
+        </div>
+
+        <div class="freq-modal-body custom-profile-modal-body">
+          <p style="font-size:11px; color:#9ca3af; margin-bottom:10px; line-height:1.4;">
+            Enter your aircraft's make/model, callsign, and critical aerodynamic speeds (knots). Once saved, this custom profile will be stored in your browser and automatically update EFIS airspeed color arcs, stall alerts, and moving map glide cones.
+          </p>
+
+          <form id="custom-profile-form" onsubmit="event.preventDefault();">
+            <div class="profile-form-grid">
+              <div class="profile-input-group full-width">
+                <label for="input-profile-name">Aircraft Make &amp; Model / Profile Name <span style="color:#ff1744;">*</span></label>
+                <input type="text" id="input-profile-name" placeholder="e.g. Sling 4 TSi, Vans RV-10, Jabiru J230, Grumman Tiger" required>
+              </div>
+
+              <div class="profile-input-group">
+                <label for="input-profile-callsign">Default Callsign / Tail Number</label>
+                <input type="text" id="input-profile-callsign" placeholder="e.g. VH-XYZ, 24-8890" value="VH-EXP">
+              </div>
+
+              <div class="profile-input-group">
+                <label for="input-profile-type">Airframe Category</label>
+                <select id="input-profile-type" class="profile-select">
+                  <option value="light_ga" selected>Light Single-Engine GA (Propeller)</option>
+                  <option value="turboprop">Twin Turboprop / High Performance</option>
+                  <option value="jet">Business Jet / Airliner</option>
+                  <option value="helicopter">Helicopter / Rotary Wing</option>
+                </select>
+              </div>
+
+              <div class="profile-input-group">
+                <label for="input-profile-glide-ratio">Best Glide Ratio (L/D)</label>
+                <input type="number" id="input-profile-glide-ratio" placeholder="9.5" step="0.1" min="3" max="40" value="9.5" required>
+              </div>
+
+              <div class="profile-input-group">
+                <label for="input-profile-glide-speed">Best Glide Speed (Vg, kt)</label>
+                <input type="number" id="input-profile-glide-speed" placeholder="70" min="20" max="300" value="70" required>
+              </div>
+
+              <div class="profile-input-group">
+                <label for="input-profile-vso">Vso (Flaps Stall, kt)</label>
+                <input type="number" id="input-profile-vso" placeholder="42" min="15" max="250" value="42" required>
+              </div>
+
+              <div class="profile-input-group">
+                <label for="input-profile-vs">Vs (Clean Stall, kt)</label>
+                <input type="number" id="input-profile-vs" placeholder="49" min="20" max="250" value="49" required>
+              </div>
+
+              <div class="profile-input-group">
+                <label for="input-profile-vx">Vx (Best Angle of Climb, kt)</label>
+                <input type="number" id="input-profile-vx" placeholder="65" min="25" max="300" value="65" required>
+              </div>
+
+              <div class="profile-input-group">
+                <label for="input-profile-vy">Vy (Best Rate of Climb, kt)</label>
+                <input type="number" id="input-profile-vy" placeholder="76" min="30" max="350" value="76" required>
+              </div>
+
+              <div class="profile-input-group">
+                <label for="input-profile-vfe">Vfe (Max Flaps Extended, kt)</label>
+                <input type="number" id="input-profile-vfe" placeholder="88" min="30" max="350" value="88" required>
+              </div>
+
+              <div class="profile-input-group">
+                <label for="input-profile-va">Va (Maneuvering Speed, kt)</label>
+                <input type="number" id="input-profile-va" placeholder="110" min="40" max="400" value="110" required>
+              </div>
+
+              <div class="profile-input-group">
+                <label for="input-profile-vno">Vno (Max Structural Cruise, kt)</label>
+                <input type="number" id="input-profile-vno" placeholder="130" min="50" max="500" value="130" required>
+              </div>
+
+              <div class="profile-input-group">
+                <label for="input-profile-vne">Vne (Never Exceed Speed, kt)</label>
+                <input type="number" id="input-profile-vne" placeholder="165" min="60" max="600" value="165" required>
+              </div>
+
+              <div class="profile-input-group">
+                <label for="input-profile-g-pos">Positive G Limit (+G)</label>
+                <input type="number" id="input-profile-g-pos" placeholder="3.8" step="0.1" min="1.0" max="10.0" value="3.8" required>
+              </div>
+
+              <div class="profile-input-group">
+                <label for="input-profile-g-neg">Negative G Limit (-G)</label>
+                <input type="number" id="input-profile-g-neg" placeholder="-1.5" step="0.1" min="-6.0" max="-0.5" value="-1.5" required>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div class="modal-footer">
+          <button id="btn-cancel-custom-profile" class="btn-yellow" type="button">Cancel</button>
+          <button id="btn-save-custom-profile" class="btn-green" type="button">💾 SAVE &amp; ACTIVATE PROFILE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cockpit Interactive Flight Simulation & Bug Adjustments Strip -->
+    <div id="sim-control-dock">
+      <div class="dock-column">
+        <span class="dock-label">FLIGHT STICK:</span>
+        <div class="sim-stick-controls">
+          <button id="btn-pitch-up" class="sim-btn" title="Pitch Up">▲ Pitch Up</button>
+          <button id="btn-pitch-down" class="sim-btn" title="Pitch Down">▼ Pitch Dn</button>
+          <button id="btn-bank-left" class="sim-btn" title="Bank Left">◀ Bank L</button>
+          <button id="btn-bank-right" class="sim-btn" title="Bank Right">Bank R ▶</button>
+          <button id="btn-level-wings" class="sim-btn" title="Level Wings">◆ Level</button>
+        </div>
+      </div>
+
+      <div class="dock-column">
+        <span class="dock-label">THROTTLE: <strong id="throttle-val">72%</strong></span>
+        <input type="range" id="throttle-slider" min="0" max="100" value="72">
+      </div>
+
+      <div class="dock-column">
+        <span class="dock-label">AUTOPILOT / BUGS:</span>
+        <button id="btn-toggle-ap" class="sim-btn active">AP: ON</button>
+        <button id="btn-hdg-bug-sync" class="sim-btn" title="Sync Heading Bug to Current Track">SYNC HDG</button>
+      </div>
+    </div>
+
+    <!-- Cockpit Master Navigation Footer -->
+    <nav id="cockpit-footer-nav">
+      <button class="nav-tab active" data-target="screen-pfd">
+        <span class="nav-icon">⬡</span>
+        <span class="nav-text">PFD / EFIS</span>
+      </button>
+      <button class="nav-tab" data-target="screen-map">
+        <span class="nav-icon">🗺</span>
+        <span class="nav-text">LIVE FLIGHT MAP</span>
+      </button>
+      <button class="nav-tab" data-target="screen-recorder">
+        <span class="nav-icon">⏺</span>
+        <span class="nav-text">BLACKBOX LOGS</span>
+      </button>
+      <button class="nav-tab" data-target="screen-calibration">
+        <span class="nav-icon">⚙</span>
+        <span class="nav-text">CALIBRATION</span>
+      </button>
+      <button class="nav-tab" data-target="screen-settings">
+        <span class="nav-icon">✈</span>
+        <span class="nav-text">SETTINGS</span>
+      </button>
+      <button class="nav-tab" data-target="screen-tests">
+        <span class="nav-icon">✓</span>
+        <span class="nav-text">TEST SUITE</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <script src="app.js"></script>
+  <script src="test-suite.js"></script>
+  <script>
+    if ('serviceWorker' in navigator && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('AeroEFIS ServiceWorker registered'))
+          .catch(err => console.warn('ServiceWorker registration error:', err));
+      });
+    }
+  </script>
+</body>
+</html>
