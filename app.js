@@ -2681,9 +2681,11 @@ class FlightSimEngine {
 // 3.4 ADVANCED AHRS SENSOR FUSION, ADAPTIVE EMA & NOISE DEADBAND FILTER
 // ============================================================================
 const AHRS_DAMPING_PRESETS = [
-  { id: "responsive", label: "RESPONSIVE (Agile)", alpha: 0.35, deadband: 0.03, uiDamp: 0.35 },
-  { id: "balanced",   label: "BALANCED (Smooth)",  alpha: 0.20, deadband: 0.06, uiDamp: 0.22 },
-  { id: "damped",     label: "ULTRA-SMOOTH (Damped)", alpha: 0.12, deadband: 0.12, uiDamp: 0.15 }
+  { id: "responsive",         label: "RESPONSIVE (Agile)",            alpha: 0.35, deadband: 0.03, uiDamp: 0.35 },
+  { id: "balanced",           label: "BALANCED (Smooth VFR)",          alpha: 0.20, deadband: 0.06, uiDamp: 0.22 },
+  { id: "damped",             label: "DAMPED (IFR Cruise)",           alpha: 0.12, deadband: 0.10, uiDamp: 0.14 },
+  { id: "ultra_smooth",       label: "ULTRA-SMOOTH (Turbulence)",     alpha: 0.06, deadband: 0.16, uiDamp: 0.08 },
+  { id: "ultra_ultra_smooth", label: "ULTRA-ULTRA SMOOTH (Heavy Iron)", alpha: 0.03, deadband: 0.22, uiDamp: 0.04 }
 ];
 
 class AhrsSensorFilter {
@@ -2729,7 +2731,11 @@ class AhrsSensorFilter {
       this.pitch = rawPitch;
       return this.pitch;
     }
-    const diff = rawPitch - this.pitch;
+    let diff = rawPitch - this.pitch;
+    // Anti-gimbal flip rejection: clamp extreme instantaneous jumps
+    if (Math.abs(diff) > 50) {
+      diff = Math.sign(diff) * 50;
+    }
     if (Math.abs(diff) < this.currentPreset.deadband) {
       return this.pitch;
     }
@@ -2744,7 +2750,11 @@ class AhrsSensorFilter {
       this.roll = rawRoll;
       return this.roll;
     }
-    const diff = rawRoll - this.roll;
+    let diff = rawRoll - this.roll;
+    // Anti-gimbal flip rejection: clamp extreme instantaneous jumps
+    if (Math.abs(diff) > 50) {
+      diff = Math.sign(diff) * 50;
+    }
     if (Math.abs(diff) < this.currentPreset.deadband) {
       return this.roll;
     }
@@ -2791,9 +2801,17 @@ const ahrsFilter = new AhrsSensorFilter();
 // ============================================================================
 // 3.5 REAL MOBILE DEVICE HARDWARE SENSORS (GPS & AHRS GYRO BRIDGE)
 // ============================================================================
+const SENSOR_ORIENTATION_OPTIONS = [
+  { id: "auto",          label: "AUTO (Screen Sync)",          shortLabel: "AUTO (DETECT)",     angle: "auto", desc: "Sync dynamically with device rotation & EFIS layout" },
+  { id: "landscape-90",  label: "LANDSCAPE (Mount Left 90°)",  shortLabel: "LANDSCAPE (90°)",   angle: 90,     desc: "Phone rotated 90° CCW / Top of phone to Left" },
+  { id: "landscape-270", label: "LANDSCAPE (Mount Right 270°)", shortLabel: "LANDSCAPE (270°)", angle: 270,    desc: "Phone rotated 90° CW / Top of phone to Right" },
+  { id: "portrait",      label: "PORTRAIT (Upright 0°)",       shortLabel: "PORTRAIT (0°)",     angle: 0,      desc: "Standard upright phone portrait mount" }
+];
+
 class DeviceSensorBridge {
   constructor() {
     this.useLiveSensors = localStorage.getItem("efis_use_live_sensors") === "true";
+    this.sensorOrientationLock = localStorage.getItem("efis_sensor_orientation_lock") || "auto";
     this.hasGpsFix = false;
     this.hasAhrsFix = false;
     this.gpsWatchId = null;
@@ -2820,25 +2838,45 @@ class DeviceSensorBridge {
     }
   }
 
-  getScreenOrientationAngle() {
-    if (typeof window === 'undefined') return 0;
-    if (window.screen && window.screen.orientation && typeof window.screen.orientation.angle === 'number') {
-      return window.screen.orientation.angle;
+  getEffectiveSensorAngle() {
+    if (this.sensorOrientationLock === "landscape-90") return 90;
+    if (this.sensorOrientationLock === "landscape-270") return 270;
+    if (this.sensorOrientationLock === "portrait") return 0;
+
+    // Auto Mode:
+    if (typeof window !== 'undefined') {
+      if (window.screen && window.screen.orientation && typeof window.screen.orientation.angle === 'number') {
+        const a = window.screen.orientation.angle;
+        if (a === 90 || a === 270 || a === 180 || a === 0) return a;
+      }
+      if (typeof window.orientation === 'number') {
+        return ((window.orientation % 360) + 360) % 360;
+      }
+      // Check current EFIS application view mode
+      if (typeof currentOrientationIndex !== 'undefined' && typeof ORIENTATION_MODES !== 'undefined' && ORIENTATION_MODES[currentOrientationIndex]) {
+        const modeId = ORIENTATION_MODES[currentOrientationIndex].id;
+        if (modeId.includes("landscape")) return 90;
+        if (modeId.includes("portrait")) return 0;
+      }
+      return (window.innerWidth > window.innerHeight) ? 90 : 0;
     }
-    if (typeof window.orientation === 'number') {
-      return ((window.orientation % 360) + 360) % 360;
+    return 0;
+  }
+
+  cycleSensorOrientationLock() {
+    const idx = SENSOR_ORIENTATION_OPTIONS.findIndex(o => o.id === this.sensorOrientationLock);
+    const nextIdx = (idx + 1) % SENSOR_ORIENTATION_OPTIONS.length;
+    this.sensorOrientationLock = SENSOR_ORIENTATION_OPTIONS[nextIdx].id;
+    localStorage.setItem("efis_sensor_orientation_lock", this.sensorOrientationLock);
+    if (typeof ahrsFilter !== 'undefined' && ahrsFilter) {
+      ahrsFilter.reset();
     }
-    // Check if the application or CSS viewport is in landscape
-    if (typeof currentOrientationIndex !== 'undefined' && typeof ORIENTATION_MODES !== 'undefined' && ORIENTATION_MODES[currentOrientationIndex]) {
-      const modeId = ORIENTATION_MODES[currentOrientationIndex].id;
-      if (modeId.includes("landscape")) return 90;
-      if (modeId.includes("portrait")) return 0;
-    }
-    return (window.innerWidth > window.innerHeight) ? 90 : 0;
+    this.updateUiStatus();
+    return SENSOR_ORIENTATION_OPTIONS[nextIdx];
   }
 
   transformDeviceOrientationToAttitude(alpha, beta, gamma) {
-    const angle = this.getScreenOrientationAngle();
+    const angle = this.getEffectiveSensorAngle();
     this.currentScreenAngle = angle;
 
     let rawPitch = 0;
@@ -2848,17 +2886,17 @@ class DeviceSensorBridge {
     const b = (beta !== null && !isNaN(beta)) ? beta : 0;
     const g = (gamma !== null && !isNaN(gamma)) ? gamma : 0;
 
-    // Transform physical device gyroscope axes to match current screen viewport orientation
+    // Transform physical device gyroscope axes to match selected/detected cockpit mount orientation
     switch (angle) {
       case 90:
-        // Landscape Primary (Phone rotated 90deg counter-clockwise, top of phone to left)
+        // Landscape Primary (Phone rotated 90deg counter-clockwise, top of phone to Left, USB to Right)
         rawPitch = -g;
         rawRoll = -b;
         rawHdg = (rawHdg + 90 + 360) % 360;
         break;
 
       case 270:
-        // Landscape Secondary (Phone rotated 90deg clockwise, top of phone to right)
+        // Landscape Secondary (Phone rotated 90deg clockwise, top of phone to Right, USB to Left)
         rawPitch = g;
         rawRoll = b;
         rawHdg = (rawHdg + 270 + 360) % 360;
@@ -2873,13 +2911,13 @@ class DeviceSensorBridge {
 
       case 0:
       default:
-        // Portrait Primary (Standard upright portrait)
+        // Portrait Primary (Standard upright portrait mount)
         rawPitch = b;
         rawRoll = g;
         break;
     }
 
-    // Clamp within aviation flight display limits
+    // Clamp within aviation flight display limits to prevent flip glitching
     rawPitch = Math.max(-60, Math.min(60, rawPitch));
     rawRoll = Math.max(-85, Math.min(85, rawRoll));
 
@@ -2887,7 +2925,7 @@ class DeviceSensorBridge {
   }
 
   handleOrientationChange() {
-    this.currentScreenAngle = this.getScreenOrientationAngle();
+    this.currentScreenAngle = this.getEffectiveSensorAngle();
     if (typeof ahrsFilter !== 'undefined' && ahrsFilter) {
       ahrsFilter.reset();
     }
@@ -3021,12 +3059,29 @@ class DeviceSensorBridge {
     const gpsStatus = document.getElementById("gps-status");
     const ahrsStatus = document.getElementById("ahrs-status");
 
-    const screenAngle = this.getScreenOrientationAngle();
-    const orientLabel = (screenAngle === 90 || screenAngle === 270) ? `LANDSCAPE (${screenAngle}°)` : `PORTRAIT (${screenAngle}°)`;
+    const mountLabel = document.getElementById("sensor-mount-mode-label");
+    const btnCalMount = document.getElementById("btn-cal-toggle-sensor-mount");
+    const btnCfgMount = document.getElementById("btn-cfg-sensor-mount");
+
+    const activeOpt = SENSOR_ORIENTATION_OPTIONS.find(o => o.id === this.sensorOrientationLock) || SENSOR_ORIENTATION_OPTIONS[0];
+    const screenAngle = this.getEffectiveSensorAngle();
+    const orientDisplay = (screenAngle === 90 || screenAngle === 270) ? `LANDSCAPE (${screenAngle}°)` : `PORTRAIT (${screenAngle}°)`;
+
+    if (mountLabel) {
+      mountLabel.textContent = `${activeOpt.label} ➔ ${orientDisplay}`;
+      mountLabel.style.color = (this.sensorOrientationLock === "auto") ? "#00e5ff" : "#ffeb3b";
+    }
+    if (btnCalMount) {
+      btnCalMount.textContent = `📱 SENSOR MOUNT: ${activeOpt.label.toUpperCase()}`;
+    }
+    if (btnCfgMount) {
+      btnCfgMount.textContent = activeOpt.shortLabel;
+      btnCfgMount.className = `unit-btn ${this.sensorOrientationLock !== 'auto' ? 'active' : ''}`;
+    }
 
     if (this.useLiveSensors) {
       if (label) {
-        label.textContent = `LIVE PHONE SENSORS [${orientLabel}]`;
+        label.textContent = `LIVE PHONE SENSORS [${orientDisplay}]`;
         label.style.color = "#00e676";
       }
       if (btn) {
@@ -3034,13 +3089,13 @@ class DeviceSensorBridge {
         btn.className = "btn-yellow";
       }
       if (gpsCoords) gpsCoords.textContent = `${this.liveLat.toFixed(4)}°, ${this.liveLon.toFixed(4)}° (${this.hasGpsFix ? '3D FIX' : 'ACQUIRING...'})`;
-      if (ahrsReadout) ahrsReadout.textContent = `Pitch ${this.livePitchDeg.toFixed(1)}° | Roll ${this.liveRollDeg.toFixed(1)}° (${this.hasAhrsFix ? `ACTIVE 60Hz - ${orientLabel}` : 'STANDBY'})`;
+      if (ahrsReadout) ahrsReadout.textContent = `Pitch ${this.livePitchDeg.toFixed(1)}° | Roll ${this.liveRollDeg.toFixed(1)}° (${this.hasAhrsFix ? `ACTIVE 60Hz - ${orientDisplay}` : 'STANDBY'})`;
       if (gpsStatus) {
         gpsStatus.innerHTML = `<span class="dot"></span> ${this.hasGpsFix ? 'GPS LIVE (3D)' : 'GPS ACQUIRING'}`;
         gpsStatus.className = `status-indicator ${this.hasGpsFix ? 'live' : 'warn'}`;
       }
       if (ahrsStatus) {
-        ahrsStatus.textContent = this.hasAhrsFix ? `AHRS ${orientLabel} 60Hz` : 'AHRS STANDBY';
+        ahrsStatus.textContent = this.hasAhrsFix ? `AHRS ${orientDisplay} 60Hz` : 'AHRS STANDBY';
         ahrsStatus.className = `status-indicator ${this.hasAhrsFix ? 'live' : 'ok'}`;
       }
     } else {
@@ -7542,6 +7597,20 @@ document.getElementById("btn-cal-zero-level")?.addEventListener("click", () => {
 
 document.getElementById("btn-toggle-sensor-source")?.addEventListener("click", () => {
   deviceSensors.toggle();
+});
+
+document.getElementById("btn-cal-toggle-sensor-mount")?.addEventListener("click", () => {
+  deviceSensors.cycleSensorOrientationLock();
+  if (audioSynth && typeof audioSynth.playDivertChime === 'function') {
+    audioSynth.playDivertChime();
+  }
+});
+
+document.getElementById("btn-cfg-sensor-mount")?.addEventListener("click", () => {
+  deviceSensors.cycleSensorOrientationLock();
+  if (audioSynth && typeof audioSynth.playDivertChime === 'function') {
+    audioSynth.playDivertChime();
+  }
 });
 
 document.getElementById("btn-cal-ahrs-damping")?.addEventListener("click", () => {

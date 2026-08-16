@@ -502,40 +502,51 @@ function runAllTests() {
   const hasDeviceSensors = typeof deviceSensors !== 'undefined' && deviceSensors !== null;
   let sensorToggleOk = false;
   let orientationTransformOk = false;
+  let mountLockCycleOk = false;
   let hasManifest = !!document.querySelector('link[rel="manifest"]');
   let hasSensorCard = !!document.getElementById("btn-toggle-sensor-source");
+  let hasMountButtons = !!document.getElementById("btn-cal-toggle-sensor-mount") && !!document.getElementById("btn-cfg-sensor-mount");
 
   if (hasDeviceSensors) {
     const origState = deviceSensors.useLiveSensors;
+    const origLock = deviceSensors.sensorOrientationLock;
+
     deviceSensors.enableLiveSensors();
     const enabledOk = deviceSensors.useLiveSensors;
     deviceSensors.disableLiveSensors();
     const disabledOk = !deviceSensors.useLiveSensors;
     sensorToggleOk = enabledOk && disabledOk;
 
-    // Test orientation transformation logic in Portrait (0°) vs Landscape (90°)
-    const origGetAngle = deviceSensors.getScreenOrientationAngle;
-    
-    // 1. Portrait (0°)
-    deviceSensors.getScreenOrientationAngle = () => 0;
+    // Test explicit mount lock modes
+    deviceSensors.sensorOrientationLock = "portrait";
     const portRes = deviceSensors.transformDeviceOrientationToAttitude(160, 15, 10);
     const portOk = (portRes.rawPitch === 15 && portRes.rawRoll === 10);
 
-    // 2. Landscape-Primary (90°)
-    deviceSensors.getScreenOrientationAngle = () => 90;
-    const landRes = deviceSensors.transformDeviceOrientationToAttitude(160, 15, 10);
-    const landOk = (landRes.rawPitch === -10 && landRes.rawRoll === -15);
+    deviceSensors.sensorOrientationLock = "landscape-90";
+    const land90Res = deviceSensors.transformDeviceOrientationToAttitude(160, 15, 10);
+    const land90Ok = (land90Res.rawPitch === -10 && land90Res.rawRoll === -15);
 
-    orientationTransformOk = portOk && landOk;
-    deviceSensors.getScreenOrientationAngle = origGetAngle;
+    deviceSensors.sensorOrientationLock = "landscape-270";
+    const land270Res = deviceSensors.transformDeviceOrientationToAttitude(160, 15, 10);
+    const land270Ok = (land270Res.rawPitch === 10 && land270Res.rawRoll === 15);
+
+    orientationTransformOk = portOk && land90Ok && land270Ok;
+
+    // Test cycling
+    deviceSensors.cycleSensorOrientationLock();
+    mountLockCycleOk = typeof deviceSensors.sensorOrientationLock === "string";
+
+    // Restore original lock
+    deviceSensors.sensorOrientationLock = origLock;
+    localStorage.setItem("efis_sensor_orientation_lock", origLock);
 
     if (origState) deviceSensors.enableLiveSensors();
   }
 
   assert(
     "Mobile Real-Device Hardware Sensors & PWA Cockpit Configuration",
-    hasDeviceSensors && sensorToggleOk && orientationTransformOk && hasManifest && hasSensorCard,
-    `SensorsBridge=${hasDeviceSensors}, SensorToggle=${sensorToggleOk}, OrientTransform=${orientationTransformOk}, ManifestLink=${hasManifest}, UIControls=${hasSensorCard}`
+    hasDeviceSensors && sensorToggleOk && orientationTransformOk && mountLockCycleOk && hasManifest && hasSensorCard && hasMountButtons,
+    `SensorsBridge=${hasDeviceSensors}, SensorToggle=${sensorToggleOk}, OrientTransform=${orientationTransformOk}, MountLock=${mountLockCycleOk}, ManifestLink=${hasManifest}, MountBtns=${hasMountButtons}`
   );
 
   // --------------------------------------------------------------------------
@@ -591,25 +602,30 @@ function runAllTests() {
   let activeMotionResponseOk = false;
   let circularHeadingWrapOk = false;
   let uiInterpolationOk = false;
+  let ultraSmoothPresetsOk = false;
 
   if (hasAhrsFilter && hasUiInterpolator) {
-    // 1. Test deadband suppression on stationary jitter
+    // 1. Test presence of 5 damping levels including ultra_smooth and ultra_ultra_smooth
+    ultraSmoothPresetsOk = AHRS_DAMPING_PRESETS.length === 5 && 
+      AHRS_DAMPING_PRESETS.some(p => p.id === "ultra_smooth") && 
+      AHRS_DAMPING_PRESETS.some(p => p.id === "ultra_ultra_smooth");
+
+    // 2. Test deadband suppression on stationary jitter
     ahrsFilter.pitch = 10.0;
     ahrsFilter.hasInit = true;
     const filteredJitter = ahrsFilter.filterPitch(10.03, 0.016);
     deadbandSuppressionOk = filteredJitter === 10.0;
 
-    // 2. Test active maneuver response
+    // 3. Test active maneuver response
     const filteredMove = ahrsFilter.filterPitch(14.0, 0.016);
     activeMotionResponseOk = filteredMove > 10.2 && filteredMove < 14.0;
 
-    // 3. Test circular heading wrap-around (359° to 1° cross-over)
+    // 4. Test circular heading wrap-around (359° to 1° cross-over)
     ahrsFilter.heading = 359.0;
     const filteredWrap = ahrsFilter.filterHeading(1.0, 0.016);
-    // Should move forward across 0° (e.g. 359.3°), not backwards by 358°
     circularHeadingWrapOk = (filteredWrap >= 359.0 && filteredWrap <= 360.0) || (filteredWrap >= 0.0 && filteredWrap <= 1.0);
 
-    // 4. Test UI Interpolator
+    // 5. Test UI Interpolator
     const mockTel = {
       pitch: 12.0, roll: -8.0, heading: 270.0, groundTrack: 272.0,
       slipSkid: 0.05, indicatedAirspeed: 120, trueAirspeed: 125,
@@ -622,8 +638,8 @@ function runAllTests() {
 
   assert(
     "AHRS Sensor Filtering, Circular Heading Stabilization & UI Interpolator",
-    hasAhrsFilter && hasUiInterpolator && hasDampingBtns && deadbandSuppressionOk && activeMotionResponseOk && circularHeadingWrapOk && uiInterpolationOk,
-    `Filter=${hasAhrsFilter}, Interpolator=${hasUiInterpolator}, DeadbandSuppressed=${deadbandSuppressionOk}, ActiveResponse=${activeMotionResponseOk}, CircularWrap=${circularHeadingWrapOk}, UiInterp=${uiInterpolationOk}`
+    hasAhrsFilter && hasUiInterpolator && hasDampingBtns && deadbandSuppressionOk && activeMotionResponseOk && circularHeadingWrapOk && uiInterpolationOk && ultraSmoothPresetsOk,
+    `Filter=${hasAhrsFilter}, Interpolator=${hasUiInterpolator}, UltraSmoothLevels=${ultraSmoothPresetsOk}, DeadbandSuppressed=${deadbandSuppressionOk}, ActiveResponse=${activeMotionResponseOk}, CircularWrap=${circularHeadingWrapOk}, UiInterp=${uiInterpolationOk}`
   );
 
   // --------------------------------------------------------------------------

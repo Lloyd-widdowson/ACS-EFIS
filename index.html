@@ -533,12 +533,18 @@
             <p>Toggle between built-in flight simulation mode and real-world mobile device sensors (Live GPS receiver, DeviceOrientation gyro &amp; G-force accelerometer) for in-cockpit flight testing.</p>
             <div class="cal-readouts">
               <div><span>Active Source:</span> <strong id="sensor-source-label" style="color:#00e5ff;">VIRTUAL SIMULATOR</strong></div>
+              <div><span>Sensor Mount Lock:</span> <strong id="sensor-mount-mode-label" style="color:#00e5ff;">AUTO (DETECT)</strong></div>
               <div><span>GPS Coordinates:</span> <strong id="sensor-gps-coords">-31.8986°, 152.5142°</strong></div>
               <div><span>AHRS Attitude:</span> <strong id="sensor-ahrs-readout">Pitch 0.0° | Roll 0.0°</strong></div>
             </div>
-            <button id="btn-toggle-sensor-source" class="btn-green" style="width:100%; margin-top:8px;">
-              🔄 SWITCH TO LIVE PHONE SENSORS (GPS + AHRS)
-            </button>
+            <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
+              <button id="btn-toggle-sensor-source" class="btn-green" style="width:100%;">
+                🔄 SWITCH TO LIVE PHONE SENSORS (GPS + AHRS)
+              </button>
+              <button id="btn-cal-toggle-sensor-mount" class="btn-cyan" style="width:100%;">
+                📱 SENSOR MOUNT AXES: AUTO (SCREEN SYNC)
+              </button>
+            </div>
           </div>
 
           <div class="cal-card">
@@ -666,6 +672,15 @@
                 <div style="font-size:9px; color:#9ca3af;">Hold press 2s on screen or click to switch modes</div>
               </div>
               <button id="btn-cfg-orientation" class="unit-btn active">PORTRAIT SPLIT</button>
+            </div>
+
+            <!-- AHRS Sensor Cockpit Mount Mode Selection -->
+            <div class="unit-toggle-row">
+              <div>
+                <strong>AHRS Sensor Cockpit Mount Mode:</strong>
+                <div style="font-size:9px; color:#9ca3af;">Lock gyro coordinate axes strictly to Landscape or Portrait mount</div>
+              </div>
+              <button id="btn-cfg-sensor-mount" class="unit-btn active">AUTO (DETECT)</button>
             </div>
 
             <!-- Turn Coordinator Toggle -->
