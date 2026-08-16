@@ -5900,7 +5900,9 @@ function updateRouteLockUI() {
     btnLock.classList.toggle("locked", isRouteLocked);
     btnLock.classList.toggle("active", isRouteLocked);
     btnLock.classList.toggle("unlocked", !isRouteLocked);
-    btnLock.textContent = isRouteLocked ? "🔒 Route Locked" : "🔓 Route Unlocked (Tap to Fix)";
+    btnLock.innerHTML = isRouteLocked 
+      ? '<span class="btn-label-long">🔒 Route Locked</span><span class="btn-label-short">🔒 Locked</span>' 
+      : '<span class="btn-label-long">🔓 Route Unlocked (Tap to Fix)</span><span class="btn-label-short">🔓 Unlocked</span>';
     btnLock.title = isRouteLocked 
       ? "Route is LOCKED (Tap to unlock for editing)" 
       : "Route is UNLOCKED (Map taps will add custom fixes)";
