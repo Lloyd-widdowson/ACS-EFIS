@@ -2780,6 +2780,10 @@ class AhrsSensorFilter {
     this.gForce += diff * 0.25;
     return this.gForce;
   }
+
+  reset() {
+    this.hasInit = false;
+  }
 }
 
 const ahrsFilter = new AhrsSensorFilter();
@@ -2807,9 +2811,87 @@ class DeviceSensorBridge {
     this.lastAlt = 3500;
     this.lastAltTime = Date.now();
 
+    this.currentScreenAngle = 0;
+    this.boundOrientationHandler = null;
+    this.boundMotionHandler = null;
+
     if (this.useLiveSensors) {
       setTimeout(() => this.enableLiveSensors(), 500);
     }
+  }
+
+  getScreenOrientationAngle() {
+    if (typeof window === 'undefined') return 0;
+    if (window.screen && window.screen.orientation && typeof window.screen.orientation.angle === 'number') {
+      return window.screen.orientation.angle;
+    }
+    if (typeof window.orientation === 'number') {
+      return ((window.orientation % 360) + 360) % 360;
+    }
+    // Check if the application or CSS viewport is in landscape
+    if (typeof currentOrientationIndex !== 'undefined' && typeof ORIENTATION_MODES !== 'undefined' && ORIENTATION_MODES[currentOrientationIndex]) {
+      const modeId = ORIENTATION_MODES[currentOrientationIndex].id;
+      if (modeId.includes("landscape")) return 90;
+      if (modeId.includes("portrait")) return 0;
+    }
+    return (window.innerWidth > window.innerHeight) ? 90 : 0;
+  }
+
+  transformDeviceOrientationToAttitude(alpha, beta, gamma) {
+    const angle = this.getScreenOrientationAngle();
+    this.currentScreenAngle = angle;
+
+    let rawPitch = 0;
+    let rawRoll = 0;
+    let rawHdg = (alpha !== null && !isNaN(alpha)) ? (360 - alpha) % 360 : 0;
+
+    const b = (beta !== null && !isNaN(beta)) ? beta : 0;
+    const g = (gamma !== null && !isNaN(gamma)) ? gamma : 0;
+
+    // Transform physical device gyroscope axes to match current screen viewport orientation
+    switch (angle) {
+      case 90:
+        // Landscape Primary (Phone rotated 90deg counter-clockwise, top of phone to left)
+        rawPitch = -g;
+        rawRoll = -b;
+        rawHdg = (rawHdg + 90 + 360) % 360;
+        break;
+
+      case 270:
+        // Landscape Secondary (Phone rotated 90deg clockwise, top of phone to right)
+        rawPitch = g;
+        rawRoll = b;
+        rawHdg = (rawHdg + 270 + 360) % 360;
+        break;
+
+      case 180:
+        // Portrait Inverted (Upside down)
+        rawPitch = -b;
+        rawRoll = -g;
+        rawHdg = (rawHdg + 180 + 360) % 360;
+        break;
+
+      case 0:
+      default:
+        // Portrait Primary (Standard upright portrait)
+        rawPitch = b;
+        rawRoll = g;
+        break;
+    }
+
+    // Clamp within aviation flight display limits
+    rawPitch = Math.max(-60, Math.min(60, rawPitch));
+    rawRoll = Math.max(-85, Math.min(85, rawRoll));
+
+    return { rawPitch, rawRoll, rawHdg, angle };
+  }
+
+  handleOrientationChange() {
+    this.currentScreenAngle = this.getScreenOrientationAngle();
+    if (typeof ahrsFilter !== 'undefined' && ahrsFilter) {
+      ahrsFilter.reset();
+    }
+    this.updateUiStatus();
   }
 
   enableLiveSensors() {
@@ -2860,14 +2942,12 @@ class DeviceSensorBridge {
       );
     }
 
-    // 2. DeviceOrientation (Real Gyro Attitude / Pitch & Roll with Jitter Filter)
+    // 2. DeviceOrientation (Real Gyro Attitude / Pitch & Roll with Dynamic Screen Rotation)
     if (window.DeviceOrientationEvent) {
-      window.addEventListener("deviceorientation", (e) => {
+      this.boundOrientationHandler = (e) => {
         if (e.beta !== null && e.gamma !== null) {
           this.hasAhrsFix = true;
-          // Beta is pitch [-180, 180], Gamma is roll [-90, 90]
-          const rawPitch = Math.max(-45, Math.min(45, e.beta));
-          const rawRoll = Math.max(-60, Math.min(60, e.gamma));
+          const { rawPitch, rawRoll, rawHdg } = this.transformDeviceOrientationToAttitude(e.alpha, e.beta, e.gamma);
 
           this.livePitchDeg = ahrsFilter.filterPitch(rawPitch);
           this.liveRollDeg = ahrsFilter.filterRoll(rawRoll);
@@ -2875,24 +2955,31 @@ class DeviceSensorBridge {
           sim.rollDeg = this.liveRollDeg;
 
           if (e.alpha !== null && !isNaN(e.alpha)) {
-            const rawHdg = (360 - e.alpha) % 360;
             this.liveHeadingDeg = ahrsFilter.filterHeading(rawHdg);
             if (!this.hasGpsFix) sim.headingDeg = this.liveHeadingDeg;
           }
           this.updateUiStatus();
         }
-      }, true);
+      };
+      window.addEventListener("deviceorientation", this.boundOrientationHandler, true);
     }
 
     // 3. DeviceMotion (Real Accelerometer G-Force with Jitter Filter)
     if (window.DeviceMotionEvent) {
-      window.addEventListener("devicemotion", (e) => {
+      this.boundMotionHandler = (e) => {
         if (e.accelerationIncludingGravity && e.accelerationIncludingGravity.z !== null) {
           const rawG = Math.abs(e.accelerationIncludingGravity.z) / 9.80665;
           this.liveGForce = ahrsFilter.filterGForce(Math.max(0.2, Math.min(6.0, rawG)));
           sim.gForceZ = this.liveGForce;
         }
-      }, true);
+      };
+      window.addEventListener("devicemotion", this.boundMotionHandler, true);
+    }
+
+    // Listen to physical screen orientation change events
+    window.addEventListener("orientationchange", () => this.handleOrientationChange());
+    if (window.screen && window.screen.orientation) {
+      window.screen.orientation.addEventListener("change", () => this.handleOrientationChange());
     }
 
     this.updateUiStatus();
@@ -2904,6 +2991,14 @@ class DeviceSensorBridge {
     if (this.gpsWatchId !== null && "geolocation" in navigator) {
       navigator.geolocation.clearWatch(this.gpsWatchId);
       this.gpsWatchId = null;
+    }
+    if (this.boundOrientationHandler) {
+      window.removeEventListener("deviceorientation", this.boundOrientationHandler, true);
+      this.boundOrientationHandler = null;
+    }
+    if (this.boundMotionHandler) {
+      window.removeEventListener("devicemotion", this.boundMotionHandler, true);
+      this.boundMotionHandler = null;
     }
     this.hasGpsFix = false;
     this.hasAhrsFix = false;
@@ -2926,9 +3021,12 @@ class DeviceSensorBridge {
     const gpsStatus = document.getElementById("gps-status");
     const ahrsStatus = document.getElementById("ahrs-status");
 
+    const screenAngle = this.getScreenOrientationAngle();
+    const orientLabel = (screenAngle === 90 || screenAngle === 270) ? `LANDSCAPE (${screenAngle}°)` : `PORTRAIT (${screenAngle}°)`;
+
     if (this.useLiveSensors) {
       if (label) {
-        label.textContent = "LIVE PHONE HARDWARE SENSORS";
+        label.textContent = `LIVE PHONE SENSORS [${orientLabel}]`;
         label.style.color = "#00e676";
       }
       if (btn) {
@@ -2936,13 +3034,13 @@ class DeviceSensorBridge {
         btn.className = "btn-yellow";
       }
       if (gpsCoords) gpsCoords.textContent = `${this.liveLat.toFixed(4)}°, ${this.liveLon.toFixed(4)}° (${this.hasGpsFix ? '3D FIX' : 'ACQUIRING...'})`;
-      if (ahrsReadout) ahrsReadout.textContent = `Pitch ${this.livePitchDeg.toFixed(1)}° | Roll ${this.liveRollDeg.toFixed(1)}° (${this.hasAhrsFix ? 'ACTIVE 60Hz (DAMPED)' : 'STANDBY'})`;
+      if (ahrsReadout) ahrsReadout.textContent = `Pitch ${this.livePitchDeg.toFixed(1)}° | Roll ${this.liveRollDeg.toFixed(1)}° (${this.hasAhrsFix ? `ACTIVE 60Hz - ${orientLabel}` : 'STANDBY'})`;
       if (gpsStatus) {
         gpsStatus.innerHTML = `<span class="dot"></span> ${this.hasGpsFix ? 'GPS LIVE (3D)' : 'GPS ACQUIRING'}`;
         gpsStatus.className = `status-indicator ${this.hasGpsFix ? 'live' : 'warn'}`;
       }
       if (ahrsStatus) {
-        ahrsStatus.textContent = this.hasAhrsFix ? 'AHRS LIVE 60Hz (DAMPED)' : 'AHRS STANDBY';
+        ahrsStatus.textContent = this.hasAhrsFix ? `AHRS ${orientLabel} 60Hz` : 'AHRS STANDBY';
         ahrsStatus.className = `status-indicator ${this.hasAhrsFix ? 'live' : 'ok'}`;
       }
     } else {
@@ -6846,6 +6944,10 @@ function applyOrientationMode(index, announce = false) {
 
   syncMapContainerLocation();
   resizeCanvases();
+
+  if (typeof deviceSensors !== 'undefined' && deviceSensors) {
+    deviceSensors.handleOrientationChange();
+  }
 
   if (announce) {
     audioSynth.playDivertChime();

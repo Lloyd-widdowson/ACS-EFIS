@@ -497,10 +497,11 @@ function runAllTests() {
   );
 
   // --------------------------------------------------------------------------
-  // Test 24: Mobile Real-Device Hardware Sensors & PWA Cockpit Configuration
+  // Test 24: Mobile Real-Device Hardware Sensors, Dynamic Portrait/Landscape AHRS & PWA Cockpit Configuration
   // --------------------------------------------------------------------------
   const hasDeviceSensors = typeof deviceSensors !== 'undefined' && deviceSensors !== null;
   let sensorToggleOk = false;
+  let orientationTransformOk = false;
   let hasManifest = !!document.querySelector('link[rel="manifest"]');
   let hasSensorCard = !!document.getElementById("btn-toggle-sensor-source");
 
@@ -511,13 +512,30 @@ function runAllTests() {
     deviceSensors.disableLiveSensors();
     const disabledOk = !deviceSensors.useLiveSensors;
     sensorToggleOk = enabledOk && disabledOk;
+
+    // Test orientation transformation logic in Portrait (0°) vs Landscape (90°)
+    const origGetAngle = deviceSensors.getScreenOrientationAngle;
+    
+    // 1. Portrait (0°)
+    deviceSensors.getScreenOrientationAngle = () => 0;
+    const portRes = deviceSensors.transformDeviceOrientationToAttitude(160, 15, 10);
+    const portOk = (portRes.rawPitch === 15 && portRes.rawRoll === 10);
+
+    // 2. Landscape-Primary (90°)
+    deviceSensors.getScreenOrientationAngle = () => 90;
+    const landRes = deviceSensors.transformDeviceOrientationToAttitude(160, 15, 10);
+    const landOk = (landRes.rawPitch === -10 && landRes.rawRoll === -15);
+
+    orientationTransformOk = portOk && landOk;
+    deviceSensors.getScreenOrientationAngle = origGetAngle;
+
     if (origState) deviceSensors.enableLiveSensors();
   }
 
   assert(
     "Mobile Real-Device Hardware Sensors & PWA Cockpit Configuration",
-    hasDeviceSensors && sensorToggleOk && hasManifest && hasSensorCard,
-    `SensorsBridge=${hasDeviceSensors}, SensorToggle=${sensorToggleOk}, ManifestLink=${hasManifest}, UIControls=${hasSensorCard}`
+    hasDeviceSensors && sensorToggleOk && orientationTransformOk && hasManifest && hasSensorCard,
+    `SensorsBridge=${hasDeviceSensors}, SensorToggle=${sensorToggleOk}, OrientTransform=${orientationTransformOk}, ManifestLink=${hasManifest}, UIControls=${hasSensorCard}`
   );
 
   // --------------------------------------------------------------------------
