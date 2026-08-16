@@ -3412,19 +3412,34 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
 }
 
 /* ==========================================================================
-   LANDSCAPE ORIENTATION RESPONSIVE LAYOUT OPTIMIZATION (LANDSCAPE ONLY)
+   LANDSCAPE ORIENTATION RESPONSIVE LAYOUT OPTIMIZATION (LANDSCAPE LOCK & AUTO)
    ========================================================================== */
 @media (orientation: landscape) {
-  #cockpit-footer-nav {
+  body:not(.portrait-mode):not(.portrait-map-mode) #cockpit-footer-nav {
     display: none !important;
   }
 
-  #sim-control-dock {
+  body:not(.portrait-mode):not(.portrait-map-mode) #sim-control-dock {
     display: none !important;
   }
+}
 
-  /* 1. Single-Line Ultra-Compact Bottom Action Bar (Docked to Bottom 0) */
-  .map-route-bar {
+body.landscape-mode #cockpit-footer-nav,
+body.landscape-map-mode #cockpit-footer-nav,
+body.fullscreen-pfd-mode #cockpit-footer-nav,
+body.fullscreen-hsi-mode #cockpit-footer-nav,
+body.fullscreen-map-mode #cockpit-footer-nav {
+  display: none !important;
+}
+
+body.landscape-mode #sim-control-dock,
+body.landscape-map-mode #sim-control-dock {
+  display: none !important;
+}
+
+/* 1. Single-Line Ultra-Compact Bottom Action Bar in Landscape */
+@media (orientation: landscape) {
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-route-bar {
     position: absolute !important;
     bottom: 0 !important;
     left: 0 !important;
@@ -3448,7 +3463,7 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.6) !important;
   }
 
-  .map-route-bar .route-info-text {
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-route-bar .route-info-text {
     display: flex !important;
     flex-direction: row !important;
     align-items: center !important;
@@ -3460,7 +3475,7 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     text-overflow: ellipsis !important;
   }
 
-  .map-route-bar .route-title {
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-route-bar .route-title {
     font-size: 0.72rem !important;
     font-weight: bold !important;
     margin: 0 !important;
@@ -3471,19 +3486,19 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     color: #00e5ff !important;
   }
 
-  .map-route-bar .route-lock-badge {
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-route-bar .route-lock-badge {
     font-size: 0.65rem !important;
     padding: 1px 4px !important;
     line-height: 1.2 !important;
   }
 
-  .map-route-bar .route-metrics {
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-route-bar .route-metrics {
     font-size: 0.68rem !important;
     white-space: nowrap !important;
     color: #9ca3af !important;
   }
 
-  .map-route-bar .route-actions {
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-route-bar .route-actions {
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
@@ -3496,15 +3511,15 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     justify-content: flex-end !important;
   }
 
-  .map-route-bar .route-actions::-webkit-scrollbar {
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-route-bar .route-actions::-webkit-scrollbar {
     display: none !important;
   }
 
-  .map-route-bar .route-actions button,
-  .map-route-bar .btn-cyan,
-  .map-route-bar .btn-magenta,
-  .map-route-bar .btn-yellow,
-  .map-route-bar .btn-lock-route {
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-route-bar .route-actions button,
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-route-bar .btn-cyan,
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-route-bar .btn-magenta,
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-route-bar .btn-yellow,
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-route-bar .btn-lock-route {
     padding: 2px 6px !important;
     font-size: 0.7rem !important;
     height: 24px !important;
@@ -3517,16 +3532,16 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     flex-shrink: 0 !important;
   }
 
-  .map-route-bar .btn-label-long {
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-route-bar .btn-label-long {
     display: none !important;
   }
 
-  .map-route-bar .btn-label-short {
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-route-bar .btn-label-short {
     display: inline !important;
   }
 
-  /* 2. Compact Live Weather Radar Widget (Shrunk ~45%, Floated at Bottom-Left above Action Bar) */
-  .weather-hud-bar {
+  /* Compact Live Weather Radar Widget */
+  body:not(.portrait-mode):not(.portrait-map-mode) .weather-hud-bar {
     bottom: 36px !important;
     left: 6px !important;
     padding: 3px 6px !important;
@@ -3539,58 +3554,58 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.8) !important;
   }
 
-  .weather-hud-controls {
+  body:not(.portrait-mode):not(.portrait-map-mode) .weather-hud-controls {
     gap: 4px !important;
   }
 
-  .weather-play-btn {
+  body:not(.portrait-mode):not(.portrait-map-mode) .weather-play-btn {
     font-size: 9px !important;
     padding: 1px 4px !important;
     border-radius: 2px !important;
   }
 
-  .weather-hud-badge {
+  body:not(.portrait-mode):not(.portrait-map-mode) .weather-hud-badge {
     font-size: 0.68rem !important;
     letter-spacing: 0.2px !important;
   }
 
-  .weather-status-pill {
+  body:not(.portrait-mode):not(.portrait-map-mode) .weather-status-pill {
     font-size: 0.65rem !important;
     letter-spacing: 0.2px !important;
   }
 
-  .weather-track-container {
+  body:not(.portrait-mode):not(.portrait-map-mode) .weather-track-container {
     padding: 1px 0 !important;
     gap: 2px !important;
   }
 
-  .weather-track-dot {
+  body:not(.portrait-mode):not(.portrait-map-mode) .weather-track-dot {
     height: 3px !important;
     border-radius: 1px !important;
   }
 
-  .weather-legend-bar {
+  body:not(.portrait-mode):not(.portrait-map-mode) .weather-legend-bar {
     gap: 1px !important;
     margin-top: 1px !important;
   }
 
-  .weather-legend-bar .legend-lbl {
+  body:not(.portrait-mode):not(.portrait-map-mode) .weather-legend-bar .legend-lbl {
     display: none !important;
   }
 
-  .weather-legend-bar .legend-gradient {
+  body:not(.portrait-mode):not(.portrait-map-mode) .weather-legend-bar .legend-gradient {
     height: 3px !important;
     border-radius: 1.5px !important;
   }
 
-  /* 3. Slim Top "MAP CONTROLS" Trigger & Layer Selector */
-  .map-hud-controls {
+  /* Slim Top "MAP CONTROLS" Trigger */
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-hud-controls {
     top: 4px !important;
     right: 6px !important;
     max-height: 86vh !important;
   }
 
-  .hud-menu-toggle-btn {
+  body:not(.portrait-mode):not(.portrait-map-mode) .hud-menu-toggle-btn {
     padding: 2px 8px !important;
     font-size: 0.72rem !important;
     height: 28px !important;
@@ -3598,11 +3613,11 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     border-radius: 4px !important;
   }
 
-  .hud-hamburger-icon {
+  body:not(.portrait-mode):not(.portrait-map-mode) .hud-hamburger-icon {
     font-size: 11px !important;
   }
 
-  .map-layer-selector {
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-layer-selector {
     top: 4px !important;
     left: 6px !important;
     height: 28px !important;
@@ -3616,28 +3631,61 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     border-radius: 3px !important;
   }
 
-  .map-layer-selector::-webkit-scrollbar {
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-layer-selector::-webkit-scrollbar {
     display: none !important;
   }
 
-  .map-layer-selector .hud-title {
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-layer-selector .hud-title {
     font-size: 0.68rem !important;
     margin-right: 2px !important;
   }
 
-  .map-layer-selector .layer-btn {
+  body:not(.portrait-mode):not(.portrait-map-mode) .map-layer-selector .layer-btn {
     padding: 2px 5px !important;
     font-size: 0.72rem !important;
     height: 22px !important;
   }
 }
 
+/* Explicit Landscape Mode Class Overrides (Force landscape styling regardless of device aspect ratio) */
+body.landscape-mode .map-route-bar,
+body.landscape-map-mode .map-route-bar {
+  position: absolute !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  padding: 3px 8px !important;
+  height: 32px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+  background: rgba(0, 0, 0, 0.94) !important;
+  border-top: 1px solid #1f2937 !important;
+  border-bottom: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-radius: 0 !important;
+  z-index: 50 !important;
+}
+
+body.landscape-mode .weather-hud-bar,
+body.landscape-map-mode .weather-hud-bar {
+  bottom: 36px !important;
+  left: 6px !important;
+  padding: 3px 6px !important;
+  min-width: 140px !important;
+  max-width: 170px !important;
+  z-index: 52 !important;
+}
+
 /* ==========================================================================
-   PORTRAIT ORIENTATION RESPONSIVE LAYOUT FIXES (PORTRAIT ONLY)
+   PORTRAIT ORIENTATION RESPONSIVE LAYOUT (PORTRAIT LOCK & AUTO)
    ========================================================================== */
 @media (orientation: portrait) {
-  /* 1. Compact Live Weather Radar Widget (Shrunk ~40%, Zero Bottom Collision) */
-  .weather-hud-bar {
+  /* 1. Compact Live Weather Radar Widget */
+  body:not(.landscape-mode):not(.landscape-map-mode) .weather-hud-bar {
     bottom: 72px !important;
     left: 6px !important;
     padding: 4px 7px !important;
@@ -3650,52 +3698,52 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.8) !important;
   }
 
-  .weather-hud-controls {
+  body:not(.landscape-mode):not(.landscape-map-mode) .weather-hud-controls {
     gap: 5px !important;
   }
 
-  .weather-play-btn {
+  body:not(.landscape-mode):not(.landscape-map-mode) .weather-play-btn {
     font-size: 9px !important;
     padding: 1.5px 5px !important;
     border-radius: 2px !important;
   }
 
-  .weather-hud-badge {
+  body:not(.landscape-mode):not(.landscape-map-mode) .weather-hud-badge {
     font-size: 9.5px !important;
     letter-spacing: 0.2px !important;
   }
 
-  .weather-status-pill {
+  body:not(.landscape-mode):not(.landscape-map-mode) .weather-status-pill {
     font-size: 7.5px !important;
     letter-spacing: 0.2px !important;
   }
 
-  .weather-track-container {
+  body:not(.landscape-mode):not(.landscape-map-mode) .weather-track-container {
     padding: 1px 0 !important;
     gap: 2px !important;
   }
 
-  .weather-track-dot {
+  body:not(.landscape-mode):not(.landscape-map-mode) .weather-track-dot {
     height: 3.5px !important;
     border-radius: 1.5px !important;
   }
 
-  .weather-legend-bar {
+  body:not(.landscape-mode):not(.landscape-map-mode) .weather-legend-bar {
     gap: 1px !important;
     margin-top: 1px !important;
   }
 
-  .weather-legend-bar .legend-lbl {
-    display: none !important; /* Hide long static text in portrait to eliminate vertical bloat */
+  body:not(.landscape-mode):not(.landscape-map-mode) .weather-legend-bar .legend-lbl {
+    display: none !important;
   }
 
-  .weather-legend-bar .legend-gradient {
+  body:not(.landscape-mode):not(.landscape-map-mode) .weather-legend-bar .legend-gradient {
     height: 3px !important;
     border-radius: 1.5px !important;
   }
 
   /* 2. Minimized / Fluid Wrapped Map Route Bar & Action Buttons */
-  .map-route-bar {
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar {
     bottom: 4px !important;
     left: 4px !important;
     right: 4px !important;
@@ -3709,7 +3757,7 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     border-radius: 4px !important;
   }
 
-  .map-route-bar .route-info-text {
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .route-info-text {
     display: flex !important;
     justify-content: space-between !important;
     align-items: center !important;
@@ -3717,7 +3765,7 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     gap: 4px !important;
   }
 
-  .map-route-bar .route-title {
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .route-title {
     font-size: 9.5px !important;
     margin-right: 2px !important;
     white-space: nowrap !important;
@@ -3726,12 +3774,12 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     max-width: 180px !important;
   }
 
-  .map-route-bar .route-metrics {
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .route-metrics {
     font-size: 8.5px !important;
     white-space: nowrap !important;
   }
 
-  .map-route-bar .route-actions {
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .route-actions {
     display: flex !important;
     flex-wrap: wrap !important;
     gap: 3px !important;
@@ -3739,11 +3787,11 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     justify-content: flex-start !important;
   }
 
-  .map-route-bar .route-actions button,
-  .map-route-bar .btn-cyan,
-  .map-route-bar .btn-magenta,
-  .map-route-bar .btn-yellow,
-  .map-route-bar .btn-lock-route {
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .route-actions button,
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .btn-cyan,
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .btn-magenta,
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .btn-yellow,
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .btn-lock-route {
     padding: 2.5px 5px !important;
     font-size: 8.5px !important;
     flex: 1 1 auto !important;
@@ -3752,12 +3800,12 @@ body.landscape-map-mode .pfd-freq-hud .freq-val {
     white-space: nowrap !important;
   }
 
-  .map-route-bar .route-lock-badge {
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .route-lock-badge {
     font-size: 8px !important;
     padding: 1px 4px !important;
   }
 
-  /* 3. Top Status Bar & Map Layer Header (No Telemetry Tag Collision) */
+  /* 3. Top Status Bar & Map Layer Header in Portrait */
   .map-layer-selector {
     top: 6px !important;
     left: 6px !important;

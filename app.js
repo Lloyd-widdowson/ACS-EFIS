@@ -2678,15 +2678,24 @@ class FlightSimEngine {
 }
 
 // ============================================================================
-// 3.4 ADVANCED AHRS SENSOR FUSION, ADAPTIVE EMA & NOISE DEADBAND FILTER
+// 3.4 ADVANCED AHRS SENSOR FUSION, TIME-CONSTANT LPF & NOISE DEADBAND FILTER
 // ============================================================================
 const AHRS_DAMPING_PRESETS = [
-  { id: "responsive",         label: "RESPONSIVE (Agile)",            alpha: 0.35, deadband: 0.03, uiDamp: 0.35 },
-  { id: "balanced",           label: "BALANCED (Smooth VFR)",          alpha: 0.20, deadband: 0.06, uiDamp: 0.22 },
-  { id: "damped",             label: "DAMPED (IFR Cruise)",           alpha: 0.12, deadband: 0.10, uiDamp: 0.14 },
-  { id: "ultra_smooth",       label: "ULTRA-SMOOTH (Turbulence)",     alpha: 0.06, deadband: 0.16, uiDamp: 0.08 },
-  { id: "ultra_ultra_smooth", label: "ULTRA-ULTRA SMOOTH (Heavy Iron)", alpha: 0.03, deadband: 0.22, uiDamp: 0.04 }
+  { id: "responsive",         label: "RESPONSIVE (Agile)",            timeConstant: 0.08, deadband: 0.03, uiDamp: 0.35, alpha: 0.35 },
+  { id: "balanced",           label: "BALANCED (Smooth VFR)",          timeConstant: 0.18, deadband: 0.06, uiDamp: 0.22, alpha: 0.20 },
+  { id: "damped",             label: "DAMPED (IFR Cruise)",           timeConstant: 0.35, deadband: 0.10, uiDamp: 0.14, alpha: 0.12 },
+  { id: "ultra_smooth",       label: "ULTRA-SMOOTH (Turbulence)",     timeConstant: 0.65, deadband: 0.16, uiDamp: 0.08, alpha: 0.06 },
+  { id: "ultra_ultra_smooth", label: "ULTRA-ULTRA SMOOTH (Heavy Iron)", timeConstant: 1.10, deadband: 0.22, uiDamp: 0.04, alpha: 0.03 }
 ];
+
+function normalizeEulerAttitude(rawAngle) {
+  if (rawAngle === null || rawAngle === undefined || isNaN(rawAngle)) return 0;
+  let norm = ((Number(rawAngle) % 360) + 360) % 360;
+  if (norm > 180) norm -= 360;
+  if (norm > 90) norm = 180 - norm;
+  else if (norm < -90) norm = -180 - norm;
+  return norm;
+}
 
 class AhrsSensorFilter {
   constructor() {
@@ -2699,6 +2708,9 @@ class AhrsSensorFilter {
     this.heading = 160.0;
     this.gForce = 1.0;
     this.hasInit = false;
+    this.lastPitchTime = 0;
+    this.lastRollTime = 0;
+    this.lastHeadingTime = 0;
   }
 
   get currentPreset() {
@@ -2721,61 +2733,92 @@ class AhrsSensorFilter {
     const btnCfg = document.getElementById("btn-cfg-ahrs-damping");
 
     const p = this.currentPreset;
-    if (labelCal) labelCal.textContent = `${p.label} (α=${p.alpha.toFixed(2)}, Deadband=${p.deadband.toFixed(2)}°)`;
+    if (labelCal) labelCal.textContent = `${p.label} (τ=${p.timeConstant.toFixed(2)}s, Deadband=${p.deadband.toFixed(2)}°)`;
     if (btnCal) btnCal.textContent = `FILTER PRESET: ${p.label}`;
     if (btnCfg) btnCfg.textContent = p.label;
   }
 
-  filterPitch(rawPitch, dt = 0.016) {
+  computeSmoothingFactor(timeConstant, lastTimestamp) {
+    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    let dt = 0.016;
+    if (lastTimestamp > 0) {
+      dt = Math.max(0.001, Math.min(0.1, (now - lastTimestamp) / 1000));
+    }
+    const tc = Math.max(0.02, timeConstant);
+    const alpha = 1.0 - Math.exp(-dt / tc);
+    return { alpha: Math.max(0.01, Math.min(0.95, alpha)), now, dt };
+  }
+
+  filterPitch(rawPitch, customDt = null) {
     if (!this.hasInit) {
       this.pitch = rawPitch;
+      this.lastPitchTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       return this.pitch;
     }
+
+    const { alpha, now } = (customDt !== null)
+      ? { alpha: 1.0 - Math.exp(-customDt / this.currentPreset.timeConstant), now: Date.now() }
+      : this.computeSmoothingFactor(this.currentPreset.timeConstant, this.lastPitchTime);
+    this.lastPitchTime = now;
+
     let diff = rawPitch - this.pitch;
-    // Anti-gimbal flip rejection: clamp extreme instantaneous jumps
-    if (Math.abs(diff) > 50) {
-      diff = Math.sign(diff) * 50;
-    }
     if (Math.abs(diff) < this.currentPreset.deadband) {
       return this.pitch;
     }
-    const rate = Math.abs(diff) / Math.max(0.001, dt);
-    const effAlpha = rate > 3.0 ? Math.min(0.65, this.currentPreset.alpha * 2.2) : this.currentPreset.alpha;
-    this.pitch += diff * effAlpha;
+
+    const sign = Math.sign(diff);
+    const activeDiff = (Math.abs(diff) - this.currentPreset.deadband) * sign;
+    const effAlpha = Math.abs(diff) > 4.0 ? Math.min(0.70, alpha * 2.0) : alpha;
+    this.pitch += activeDiff * effAlpha;
     return this.pitch;
   }
 
-  filterRoll(rawRoll, dt = 0.016) {
+  filterRoll(rawRoll, customDt = null) {
     if (!this.hasInit) {
       this.roll = rawRoll;
+      this.lastRollTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       return this.roll;
     }
+
+    const { alpha, now } = (customDt !== null)
+      ? { alpha: 1.0 - Math.exp(-customDt / this.currentPreset.timeConstant), now: Date.now() }
+      : this.computeSmoothingFactor(this.currentPreset.timeConstant, this.lastRollTime);
+    this.lastRollTime = now;
+
     let diff = rawRoll - this.roll;
-    // Anti-gimbal flip rejection: clamp extreme instantaneous jumps
-    if (Math.abs(diff) > 50) {
-      diff = Math.sign(diff) * 50;
-    }
     if (Math.abs(diff) < this.currentPreset.deadband) {
       return this.roll;
     }
-    const rate = Math.abs(diff) / Math.max(0.001, dt);
-    const effAlpha = rate > 3.0 ? Math.min(0.65, this.currentPreset.alpha * 2.2) : this.currentPreset.alpha;
-    this.roll += diff * effAlpha;
+
+    const sign = Math.sign(diff);
+    const activeDiff = (Math.abs(diff) - this.currentPreset.deadband) * sign;
+    const effAlpha = Math.abs(diff) > 4.0 ? Math.min(0.70, alpha * 2.0) : alpha;
+    this.roll += activeDiff * effAlpha;
     return this.roll;
   }
 
-  filterHeading(rawHeading, dt = 0.016) {
+  filterHeading(rawHeading, customDt = null) {
     if (!this.hasInit) {
       this.heading = rawHeading;
+      this.hasInit = true;
+      this.lastHeadingTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       return this.heading;
     }
+
+    const { alpha, now } = (customDt !== null)
+      ? { alpha: 1.0 - Math.exp(-customDt / (this.currentPreset.timeConstant * 1.2)), now: Date.now() }
+      : this.computeSmoothingFactor(this.currentPreset.timeConstant * 1.2, this.lastHeadingTime);
+    this.lastHeadingTime = now;
+
     let diff = (rawHeading - this.heading + 540) % 360 - 180;
     if (Math.abs(diff) < (this.currentPreset.deadband * 1.5)) {
       return this.heading;
     }
-    const rate = Math.abs(diff) / Math.max(0.001, dt);
-    const effAlpha = rate > 4.0 ? Math.min(0.60, this.currentPreset.alpha * 2.0) : (this.currentPreset.alpha * 0.85);
-    this.heading = (this.heading + diff * effAlpha + 360) % 360;
+
+    const sign = Math.sign(diff);
+    const activeDiff = (Math.abs(diff) - (this.currentPreset.deadband * 1.5)) * sign;
+    const effAlpha = Math.abs(diff) > 6.0 ? Math.min(0.65, alpha * 2.0) : alpha;
+    this.heading = (this.heading + activeDiff * effAlpha + 360) % 360;
     return this.heading;
   }
 
@@ -2787,12 +2830,15 @@ class AhrsSensorFilter {
     }
     const diff = rawG - this.gForce;
     if (Math.abs(diff) < 0.02) return this.gForce;
-    this.gForce += diff * 0.25;
+    this.gForce += diff * 0.20;
     return this.gForce;
   }
 
   reset() {
     this.hasInit = false;
+    this.lastPitchTime = 0;
+    this.lastRollTime = 0;
+    this.lastHeadingTime = 0;
   }
 }
 
@@ -2845,18 +2891,18 @@ class DeviceSensorBridge {
 
     // Auto Mode:
     if (typeof window !== 'undefined') {
+      // Check current EFIS application view mode first
+      if (typeof currentOrientationIndex !== 'undefined' && typeof ORIENTATION_MODES !== 'undefined' && ORIENTATION_MODES[currentOrientationIndex]) {
+        const modeId = ORIENTATION_MODES[currentOrientationIndex].id;
+        if (modeId.includes("landscape")) return 90;
+        if (modeId.includes("portrait")) return 0;
+      }
       if (window.screen && window.screen.orientation && typeof window.screen.orientation.angle === 'number') {
         const a = window.screen.orientation.angle;
         if (a === 90 || a === 270 || a === 180 || a === 0) return a;
       }
       if (typeof window.orientation === 'number') {
         return ((window.orientation % 360) + 360) % 360;
-      }
-      // Check current EFIS application view mode
-      if (typeof currentOrientationIndex !== 'undefined' && typeof ORIENTATION_MODES !== 'undefined' && ORIENTATION_MODES[currentOrientationIndex]) {
-        const modeId = ORIENTATION_MODES[currentOrientationIndex].id;
-        if (modeId.includes("landscape")) return 90;
-        if (modeId.includes("portrait")) return 0;
       }
       return (window.innerWidth > window.innerHeight) ? 90 : 0;
     }
@@ -2879,41 +2925,45 @@ class DeviceSensorBridge {
     const angle = this.getEffectiveSensorAngle();
     this.currentScreenAngle = angle;
 
+    const b = (beta !== null && !isNaN(beta)) ? Number(beta) : 0;
+    const g = (gamma !== null && !isNaN(gamma)) ? Number(gamma) : 0;
+    const a = (alpha !== null && !isNaN(alpha)) ? Number(alpha) : 0;
+
+    const normB = normalizeEulerAttitude(b);
+    const normG = normalizeEulerAttitude(g);
+
     let rawPitch = 0;
     let rawRoll = 0;
-    let rawHdg = (alpha !== null && !isNaN(alpha)) ? (360 - alpha) % 360 : 0;
-
-    const b = (beta !== null && !isNaN(beta)) ? beta : 0;
-    const g = (gamma !== null && !isNaN(gamma)) ? gamma : 0;
+    let rawHdg = (360 - a + 360) % 360;
 
     // Transform physical device gyroscope axes to match selected/detected cockpit mount orientation
     switch (angle) {
       case 90:
-        // Landscape Primary (Phone rotated 90deg counter-clockwise, top of phone to Left, USB to Right)
-        rawPitch = -g;
-        rawRoll = -b;
-        rawHdg = (rawHdg + 90 + 360) % 360;
+        // Landscape Primary (Phone rotated 90° CCW / Top of phone to Left, USB to Right)
+        rawPitch = -normG;
+        rawRoll = -normB;
+        rawHdg = (rawHdg + 90) % 360;
         break;
 
       case 270:
-        // Landscape Secondary (Phone rotated 90deg clockwise, top of phone to Right, USB to Left)
-        rawPitch = g;
-        rawRoll = b;
-        rawHdg = (rawHdg + 270 + 360) % 360;
+        // Landscape Secondary (Phone rotated 90° CW / Top of phone to Right, USB to Left)
+        rawPitch = normG;
+        rawRoll = normB;
+        rawHdg = (rawHdg + 270) % 360;
         break;
 
       case 180:
         // Portrait Inverted (Upside down)
-        rawPitch = -b;
-        rawRoll = -g;
-        rawHdg = (rawHdg + 180 + 360) % 360;
+        rawPitch = -normB;
+        rawRoll = -normG;
+        rawHdg = (rawHdg + 180) % 360;
         break;
 
       case 0:
       default:
         // Portrait Primary (Standard upright portrait mount)
-        rawPitch = b;
-        rawRoll = g;
+        rawPitch = normB;
+        rawRoll = normG;
         break;
     }
 
@@ -3167,7 +3217,10 @@ class UiTelemetryInterpolator {
 
     // Linear LERP for continuous scalar variables
     this.display.pitch += (targetTel.pitch - this.display.pitch) * factor;
-    this.display.roll += (targetTel.roll - this.display.roll) * factor;
+    let rollDiff = (targetTel.roll - this.display.roll + 540) % 360 - 180;
+    this.display.roll += rollDiff * factor;
+    if (this.display.roll > 180) this.display.roll -= 360;
+    else if (this.display.roll < -180) this.display.roll += 360;
     this.display.slipSkid += (targetTel.slipSkid - this.display.slipSkid) * factor;
     this.display.indicatedAirspeed += (targetTel.indicatedAirspeed - this.display.indicatedAirspeed) * factor;
     this.display.trueAirspeed += (targetTel.trueAirspeed - this.display.trueAirspeed) * factor;
@@ -6999,6 +7052,15 @@ function applyOrientationMode(index, announce = false) {
     btnCfg.textContent = currentMode.label;
   }
 
+  // Attempt Web Screen Orientation Lock if in fullscreen or supported PWA environment
+  if (window.screen && window.screen.orientation && typeof window.screen.orientation.lock === 'function') {
+    if (currentMode.id.includes("landscape")) {
+      window.screen.orientation.lock("landscape").catch(() => {});
+    } else if (currentMode.id.includes("portrait")) {
+      window.screen.orientation.lock("portrait").catch(() => {});
+    }
+  }
+
   syncMapContainerLocation();
   resizeCanvases();
 
@@ -7007,7 +7069,9 @@ function applyOrientationMode(index, announce = false) {
   }
 
   if (announce) {
-    audioSynth.playDivertChime();
+    if (audioSynth && typeof audioSynth.playDivertChime === 'function') {
+      audioSynth.playDivertChime();
+    }
     if (navigator.vibrate) {
       try { navigator.vibrate(60); } catch(e) {}
     }
@@ -7625,6 +7689,7 @@ document.getElementById("btn-cfg-ahrs-damping")?.addEventListener("click", () =>
 
 // URL Hash Screen Navigation Support (e.g. #map, #settings, #pfd) & Initializer
 window.addEventListener("DOMContentLoaded", () => {
+  applyOrientationMode(currentOrientationIndex, false);
   deviceSensors.updateUiStatus();
   ahrsCalibrationMgr.init();
   ahrsFilter.updateUI();
