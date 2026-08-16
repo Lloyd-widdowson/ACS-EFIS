@@ -277,7 +277,7 @@
                   </div>
                 </div>
 
-                <button id="btn-map-live-feed" class="hud-btn" title="Toggle Live OpenSky / ADSB Network Feed">🌐 Web Feed: OFF</button>
+                <button id="btn-map-live-feed" class="hud-btn active" title="Toggle Multi-Source Live Network ADS-B Traffic Feed">🌐 Live Feed: ON</button>
                 <button id="btn-map-airports" class="hud-btn active">Airports: ON</button>
                 <button id="btn-map-vhf-areas" class="hud-btn active">VHF Areas: ON</button>
                 <button id="btn-map-ctaf-rings" class="hud-btn active">CTAF Rings: ON</button>
@@ -620,6 +620,14 @@
                 <div style="font-size:9px; color:#9ca3af;">Display real-time traffic chevrons &amp; trend vectors</div>
               </div>
               <button id="btn-cfg-traffic" class="unit-btn active">ENABLED (ON)</button>
+            </div>
+
+            <div class="unit-toggle-row">
+              <div>
+                <strong>Live Internet ADS-B Traffic Feed:</strong>
+                <div style="font-size:9px; color:#9ca3af;">Multi-source failover (adsb.lol, adsb.fi, OpenSky, Sim Failover)</div>
+              </div>
+              <button id="btn-cfg-live-feed" class="unit-btn active">ENABLED (ON)</button>
             </div>
 
             <div class="unit-toggle-row">

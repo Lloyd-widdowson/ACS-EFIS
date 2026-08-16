@@ -1961,21 +1961,62 @@ class TrafficManager {
     this.altitudeFilter = localStorage.getItem("efis_traffic_filter") || "ALL"; // Default ALL to show high altitude jets like ANZ291!
     this.audioTcasEnabled = true;
     
-    // Live Real-World ADS-B Feed via api.adsb.lol
-    this.isLiveWebFeedActive = true;
+    // Live Real-World ADS-B Feed via multi-tier fallback pipeline
+    this.isLiveWebFeedActive = localStorage.getItem("efis_live_adsb") !== "false";
     this.isFetchingLiveAdsb = false;
     this.lastLiveFetchTime = 0;
     this.liveFetchIntervalMs = 4000;
     this.liveTargetCount = 0;
-    this.feedSourceLabel = "adsb.lol (Live Network)";
+    this.feedSourceLabel = "Direct / Sim";
 
     this.lastTcasAlertTime = 0;
     this.highestThreatLevel = "NONE";
     this.highestThreatTarget = null;
     
-    if (!this.isLiveWebFeedActive) {
-      this.initRealAirspaceFleet();
+    // Always initialize baseline realistic fleet so radar and traffic are never 0 targets
+    this.initRealAirspaceFleet();
+  }
+
+  toggleLiveFeed(forcedState = null) {
+    if (typeof forcedState === "boolean") {
+      this.isLiveWebFeedActive = forcedState;
+    } else {
+      this.isLiveWebFeedActive = !this.isLiveWebFeedActive;
     }
+    localStorage.setItem("efis_live_adsb", this.isLiveWebFeedActive);
+    
+    const liveBtn = document.getElementById("btn-map-live-feed");
+    const cfgLiveBtn = document.getElementById("btn-cfg-live-feed");
+
+    if (this.isLiveWebFeedActive) {
+      const label = this.liveTargetCount > 0 
+        ? `🌐 Live: ${this.liveTargetCount} AC (${this.feedSourceLabel})` 
+        : `🌐 Live: ${this.targets.size} AC (Sim / Direct)`;
+      if (liveBtn) {
+        liveBtn.classList.add("active");
+        liveBtn.textContent = label;
+      }
+      if (cfgLiveBtn) {
+        cfgLiveBtn.classList.add("active");
+        cfgLiveBtn.textContent = "ENABLED (ON)";
+      }
+      const lat = (typeof sim !== 'undefined' && sim) ? sim.lat : -31.8986;
+      const lon = (typeof sim !== 'undefined' && sim) ? sim.lon : 152.5142;
+      this.fetchLiveAdsbData(lat, lon, 250);
+    } else {
+      if (liveBtn) {
+        liveBtn.classList.remove("active");
+        liveBtn.textContent = `🌐 Web Feed: OFF (${this.targets.size} AC Sim)`;
+      }
+      if (cfgLiveBtn) {
+        cfgLiveBtn.classList.remove("active");
+        cfgLiveBtn.textContent = "DISABLED (OFF)";
+      }
+      if (this.targets.size === 0) {
+        this.initRealAirspaceFleet();
+      }
+    }
+    renderTrafficOnMap();
   }
 
   initRealAirspaceFleet() {
@@ -2120,99 +2161,83 @@ class TrafficManager {
       let livePlanes = [];
       let feedSource = "adsb.lol";
 
-      // 1. Primary Source: Local ADS-B Proxy Gateway (Direct High-Speed adsb.lol Feed with full CORS)
-      try {
-        const proxyBase = (typeof window !== 'undefined' && window.location && (window.location.protocol === 'http:' || window.location.protocol === 'https:'))
-          ? `${window.location.origin}/api/adsb`
-          : `http://localhost:8080/api/adsb`;
-        const localProxyUrl = `${proxyBase}?lat=${ownLat.toFixed(4)}&lon=${ownLon.toFixed(4)}&dist=${radiusNm}`;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-        const resp = await fetch(localProxyUrl, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data && Array.isArray(data.ac) && data.ac.length > 0) {
-            feedSource = "adsb.lol";
-            livePlanes = data.ac.filter(ac => ac.lat != null && ac.lon != null && ac.hex);
-          }
+      // Tiered Candidate Endpoints (direct, CORS-proxied, open community feeds)
+      const fetchCandidates = [
+        // 1. Direct adsb.lol API
+        {
+          name: "adsb.lol",
+          url: `https://api.adsb.lol/v2/lat/${ownLat.toFixed(4)}/lon/${ownLon.toFixed(4)}/dist/${radiusNm}`,
+          type: "adsb_v2"
+        },
+        // 2. Direct opendata.adsb.fi API
+        {
+          name: "adsb.fi",
+          url: `https://opendata.adsb.fi/api/v2/lat/${ownLat.toFixed(4)}/lon/${ownLon.toFixed(4)}/dist/${radiusNm}`,
+          type: "adsb_v2"
+        },
+        // 3. CORS Proxy (AllOrigins) for adsb.lol
+        {
+          name: "adsb.lol (CORS)",
+          url: `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://api.adsb.lol/v2/lat/${ownLat.toFixed(4)}/lon/${ownLon.toFixed(4)}/dist/${radiusNm}`)}`,
+          type: "adsb_v2"
+        },
+        // 4. CORS Proxy (CorsProxy.io) for adsb.lol
+        {
+          name: "adsb.lol (Proxy)",
+          url: `https://corsproxy.io/?url=${encodeURIComponent(`https://api.adsb.lol/v2/lat/${ownLat.toFixed(4)}/lon/${ownLon.toFixed(4)}/dist/${radiusNm}`)}`,
+          type: "adsb_v2"
+        },
+        // 5. OpenSky Network Public Bounding Box API
+        {
+          name: "OpenSky",
+          url: `https://opensky-network.org/api/states/all?lamin=${(ownLat - (radiusNm/60.0)*1.2).toFixed(3)}&lomin=${(ownLon - (radiusNm/60.0)*1.2).toFixed(3)}&lamax=${(ownLat + (radiusNm/60.0)*1.2).toFixed(3)}&lomax=${(ownLon + (radiusNm/60.0)*1.2).toFixed(3)}`,
+          type: "opensky"
+        },
+        // 6. Local Server Proxy (if running server.ps1 locally)
+        {
+          name: "Local Gateway",
+          url: `${(typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : 'http://localhost:8080'}/api/adsb?lat=${ownLat.toFixed(4)}&lon=${ownLon.toFixed(4)}&dist=${radiusNm}`,
+          type: "adsb_v2"
         }
-      } catch (errProxy) {
-        // Fallback to direct / secondary sources
-      }
+      ];
 
-      // 2. Secondary Source: Direct adsb.lol / CORS mirrors
-      if (livePlanes.length === 0) {
+      for (const candidate of fetchCandidates) {
         try {
-          const directUrl = `https://api.adsb.lol/v2/lat/${ownLat.toFixed(4)}/lon/${ownLon.toFixed(4)}/dist/${radiusNm}`;
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 3500);
-          const resp = await fetch(directUrl, { signal: controller.signal });
+          const resp = await fetch(candidate.url, { signal: controller.signal });
           clearTimeout(timeoutId);
 
           if (resp.ok) {
             const data = await resp.json();
-            if (data && Array.isArray(data.ac) && data.ac.length > 0) {
-              feedSource = "adsb.lol";
+            if (candidate.type === "adsb_v2" && data && Array.isArray(data.ac) && data.ac.length > 0) {
+              feedSource = candidate.name;
               livePlanes = data.ac.filter(ac => ac.lat != null && ac.lon != null && ac.hex);
+              if (livePlanes.length > 0) break;
+            } else if (candidate.type === "opensky" && data && Array.isArray(data.states) && data.states.length > 0) {
+              feedSource = candidate.name;
+              livePlanes = data.states.map(s => ({
+                hex: (s[0] || "").toUpperCase(),
+                flight: (s[1] || s[0] || "").trim(),
+                r: (s[0] || "").startsWith("7C") ? `VH-${(s[0] || "").slice(-3)}` : s[0],
+                t: AIRCRAFT_TYPE_NAMES[(s[1] || "").slice(0, 3)] ? (s[1] || "").slice(0, 3) : "AIRCRAFT",
+                country: s[2] || getCountryFromIcao(s[0]),
+                lat: s[6],
+                lon: s[5],
+                alt_baro: (s[7] != null) ? Math.round(s[7] * 3.28084) : (s[8] ? 0 : 2500),
+                gs: (s[9] != null) ? Math.round(s[9] * 1.94384) : 120,
+                track: (s[10] != null) ? Math.round(s[10]) : 0,
+                baro_rate: (s[11] != null) ? Math.round(s[11] * 196.85) : 0,
+                squawk: s[14] || "1200",
+                rssi: -22.0,
+                messages: 40,
+                seen: 0.5
+              })).filter(p => p.lat != null && p.lon != null && p.hex);
+              if (livePlanes.length > 0) break;
             }
           }
-        } catch (errDirect) {
-          // Direct fetch blocked by browser CORS
-        }
-      }
-
-      // 3. Tertiary Source: OpenSky Network (Academic CORS-friendly public API)
-      if (livePlanes.length === 0) {
-        try {
-          const deltaDeg = (radiusNm / 60.0) * 1.5;
-          const lamin = (ownLat - deltaDeg).toFixed(3);
-          const lamax = (ownLat + deltaDeg).toFixed(3);
-          const lomin = (ownLon - deltaDeg).toFixed(3);
-          const lomax = (ownLon + deltaDeg).toFixed(3);
-          const openSkyUrl = `https://opensky-network.org/api/states/all?lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}`;
-
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 4500);
-          const resp = await fetch(openSkyUrl, { signal: controller.signal });
-          clearTimeout(timeoutId);
-
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data && Array.isArray(data.states) && data.states.length > 0) {
-              feedSource = "OpenSky";
-              livePlanes = data.states.map(s => {
-                const hex = (s[0] || "").toUpperCase();
-                const callsign = (s[1] || hex).trim();
-                const altFt = (s[7] != null) ? Math.round(s[7] * 3.28084) : (s[8] ? 0 : 2500);
-                const gsKt = (s[9] != null) ? Math.round(s[9] * 1.94384) : 0;
-                const trackDeg = (s[10] != null) ? Math.round(s[10]) : 0;
-                const vsFpm = (s[11] != null) ? Math.round(s[11] * 196.85) : 0;
-                const originCountry = s[2] || getCountryFromIcao(hex);
-
-                return {
-                  hex,
-                  flight: callsign,
-                  r: hex.startsWith("7C") ? `VH-${hex.slice(-3)}` : hex,
-                  t: AIRCRAFT_TYPE_NAMES[callsign.slice(0, 3)] ? callsign.slice(0, 3) : "AIRCRAFT",
-                  country: originCountry,
-                  lat: s[6],
-                  lon: s[5],
-                  alt_baro: altFt,
-                  gs: gsKt,
-                  track: trackDeg,
-                  baro_rate: vsFpm,
-                  squawk: s[14] || "1200",
-                  rssi: -22.0,
-                  messages: 45,
-                  seen: 0.5
-                };
-              }).filter(p => p.lat != null && p.lon != null && p.hex);
-            }
-          }
-        } catch (errOpenSky) {
-          // OpenSky rate-limited or offline
+        } catch (candidateErr) {
+          // Fall through to next candidate in pipeline
         }
       }
 
@@ -2275,7 +2300,8 @@ class TrafficManager {
         });
 
         this.liveTargetCount = activeHexes.size;
-        this.lastWebFetchTime = now;
+        this.feedSourceLabel = feedSource;
+        this.lastLiveFetchTime = now;
 
         // Clean up stale non-real targets if real feed is active
         this.targets.forEach((tgt, icao) => {
@@ -2291,20 +2317,25 @@ class TrafficManager {
           liveBtn.textContent = `🌐 Live: ${this.liveTargetCount} AC (${feedSource})`;
         }
       } else {
+        // Fallback simulation mode: if offline or no network aircraft returned, keep realistic local fleet
+        if (this.targets.size === 0) {
+          this.initRealAirspaceFleet();
+        }
+        this.feedSourceLabel = "Sim Fleet";
         const liveBtn = document.getElementById("btn-map-live-feed");
         if (liveBtn && this.isLiveWebFeedActive) {
           liveBtn.classList.add("active");
-          liveBtn.textContent = this.targets.size > 0 
-            ? `🌐 Live: ${this.targets.size} AC (${feedSource})`
-            : `🌐 Live: 0 AC (Scanning...)`;
+          liveBtn.textContent = `🌐 Live: ${this.targets.size} AC (Sim Fleet)`;
         }
       }
     } catch (e) {
+      if (this.targets.size === 0) {
+        this.initRealAirspaceFleet();
+      }
       const liveBtn = document.getElementById("btn-map-live-feed");
       if (liveBtn && this.isLiveWebFeedActive) {
-        liveBtn.textContent = this.targets.size > 0
-          ? `🌐 Live: ${this.targets.size} AC (${feedSource})`
-          : `🌐 Live: 0 AC (Scanning...)`;
+        liveBtn.classList.add("active");
+        liveBtn.textContent = `🌐 Live: ${this.targets.size} AC (Sim Fleet)`;
       }
     } finally {
       this.isFetchingLiveAdsb = false;
@@ -6400,24 +6431,18 @@ document.getElementById("btn-insp-follow")?.addEventListener("click", function()
   }
 });
 
-// Live Web Feed Toggle (adsb.lol Live Network Feed)
+// Live Web Feed Toggle (Multi-Source ADS-B Traffic Pipeline)
 document.getElementById("btn-map-live-feed")?.addEventListener("click", function() {
-  trafficMgr.isLiveWebFeedActive = !trafficMgr.isLiveWebFeedActive;
-  this.classList.toggle("active", trafficMgr.isLiveWebFeedActive);
-  trafficMgr.targets.clear();
-  if (selectedTargetHex) {
-    deselectAircraftTarget();
+  trafficMgr.toggleLiveFeed();
+  if (audioSynth && typeof audioSynth.playDivertChime === 'function') {
+    audioSynth.playDivertChime();
   }
-  if (trafficMgr.isLiveWebFeedActive) {
-    this.textContent = "🌐 Live: CONNECTING...";
-    trafficMgr.lastLiveFetchTime = 0; // Force immediate fetch
-    trafficMgr.fetchLiveAdsbData(sim.lat, sim.lon, 250);
-  } else {
-    this.textContent = "🌐 Web Feed: OFF (SIM)";
-    trafficMgr.initRealAirspaceFleet();
+});
+document.getElementById("btn-cfg-live-feed")?.addEventListener("click", function() {
+  trafficMgr.toggleLiveFeed();
+  if (audioSynth && typeof audioSynth.playDivertChime === 'function') {
+    audioSynth.playDivertChime();
   }
-  audioSynth.playDivertChime();
-  renderTrafficOnMap();
 });
 
 // ADS-B Traffic Directory & Map Controls
