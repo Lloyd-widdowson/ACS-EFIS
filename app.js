@@ -3406,42 +3406,42 @@ window.addEventListener("resize", resizeCanvases);
 window.addEventListener("DOMContentLoaded", resizeCanvases);
 
 // --- 5.1 TURN COORDINATOR & INCLINOMETER GAUGE DRAWING ---
-function renderTurnCoordinator(ctx, tel, cx, cy, scale = 1.15) {
+function renderTurnCoordinator(ctx, tel, cx, cy, scale = 0.85) {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.scale(scale, scale);
 
-  // Background Capsule Card with high-contrast aviation bezel
+  // Background Capsule Card with high-contrast aviation bezel (Sleek Compact Footprint)
   ctx.fillStyle = "rgba(10, 14, 23, 0.92)";
   ctx.strokeStyle = "#374151";
-  ctx.lineWidth = 2.0;
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.roundRect(-78, -46, 156, 92, 10);
+  ctx.roundRect(-58, -34, 116, 68, 8);
   ctx.fill();
   ctx.stroke();
 
   // 1. Level Reference Marks (- -)
-  const levelY = -18;
+  const levelY = -13;
   ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 4.0;
+  ctx.lineWidth = 3.0;
   ctx.beginPath();
   // Left level tick
-  ctx.moveTo(-62, levelY); ctx.lineTo(-40, levelY);
+  ctx.moveTo(-46, levelY); ctx.lineTo(-30, levelY);
   // Right level tick
-  ctx.moveTo(40, levelY); ctx.lineTo(62, levelY);
+  ctx.moveTo(30, levelY); ctx.lineTo(46, levelY);
   ctx.stroke();
 
   // 2. Standard Rate Turn Index Ticks (\  /)
   ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 3.5;
+  ctx.lineWidth = 2.5;
   ctx.beginPath();
   // Left standard rate turn tick
-  ctx.moveTo(-56, -4); ctx.lineTo(-40, 2);
+  ctx.moveTo(-42, -3); ctx.lineTo(-30, 2);
   // Right standard rate turn tick
-  ctx.moveTo(56, -4); ctx.lineTo(40, 2);
+  ctx.moveTo(42, -3); ctx.lineTo(30, 2);
   ctx.stroke();
 
-  // 3. Rotating Miniature Airplane Silhouette (Bigger & Crisp)
+  // 3. Rotating Miniature Airplane Silhouette (Crisp & Proportionate)
   // Bank angle proportional to Rate of Turn (deg/sec)
   const airplaneBankDeg = Math.max(-30, Math.min(30, (tel.turnRateDegPerSec / 3.0) * 18.0));
   ctx.save();
@@ -3450,58 +3450,58 @@ function renderTurnCoordinator(ctx, tel, cx, cy, scale = 1.15) {
 
   ctx.fillStyle = "#ffffff";
   ctx.strokeStyle = "#000000";
-  ctx.lineWidth = 1.2;
+  ctx.lineWidth = 1.0;
 
-  // Enlarged Airplane Body & Wings
+  // Proportionate Airplane Body & Wings
   ctx.beginPath();
   // Vertical Stabilizer / Rudder
-  ctx.moveTo(0, -12); ctx.lineTo(2.2, -12); ctx.lineTo(2.2, -3); ctx.lineTo(5.5, 0);
+  ctx.moveTo(0, -9); ctx.lineTo(1.8, -9); ctx.lineTo(1.8, -2); ctx.lineTo(4, 0);
   // Right Wing
-  ctx.lineTo(34, 1.8); ctx.lineTo(34, 5.5); ctx.lineTo(4, 5.5);
+  ctx.lineTo(25, 1.4); ctx.lineTo(25, 4.2); ctx.lineTo(3, 4.2);
   // Fuselage Lower Contour
-  ctx.lineTo(0, 7); ctx.lineTo(-4, 5.5);
+  ctx.lineTo(0, 5.5); ctx.lineTo(-3, 4.2);
   // Left Wing
-  ctx.lineTo(-34, 5.5); ctx.lineTo(-34, 1.8); ctx.lineTo(-5.5, 0); ctx.lineTo(-2.2, -3); ctx.lineTo(-2.2, -12);
+  ctx.lineTo(-25, 4.2); ctx.lineTo(-25, 1.4); ctx.lineTo(-4, 0); ctx.lineTo(-1.8, -2); ctx.lineTo(-1.8, -9);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
 
   // Center Fuselage Hub
   ctx.beginPath();
-  ctx.arc(0, 2, 4.5, 0, Math.PI * 2);
+  ctx.arc(0, 1.5, 3.5, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
   ctx.restore();
 
-  // 4. Enlarged Inclinometer Glass Tube & Slip/Skid Ball ("Step on the Ball")
-  const tubeW = 76, tubeH = 18;
-  const tubeY = 16;
+  // 4. Compact Inclinometer Glass Tube & Slip/Skid Ball ("Step on the Ball")
+  const tubeW = 56, tubeH = 13;
+  const tubeY = 12;
 
   // Tube Capsule Outline
   ctx.fillStyle = "#000000";
   ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 2.0;
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.roundRect(-tubeW / 2, tubeY, tubeW, tubeH, 9);
+  ctx.roundRect(-tubeW / 2, tubeY, tubeW, tubeH, 6.5);
   ctx.fill();
   ctx.stroke();
 
   // Center Reference Guide Lines (Two vertical black/gray lines spaced 1 ball width)
   ctx.strokeStyle = "#6b7280";
-  ctx.lineWidth = 2.0;
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(-6.5, tubeY); ctx.lineTo(-6.5, tubeY + tubeH);
-  ctx.moveTo(6.5, tubeY); ctx.lineTo(6.5, tubeY + tubeH);
+  ctx.moveTo(-5.0, tubeY); ctx.lineTo(-5.0, tubeY + tubeH);
+  ctx.moveTo(5.0, tubeY); ctx.lineTo(5.0, tubeY + tubeH);
   ctx.stroke();
 
-  // Sliding Inclinometer Ball (Bigger & High Contrast)
-  const ballRadius = 6.0;
-  const ballOffset = Math.max(-tubeW / 2 + ballRadius + 2, Math.min(tubeW / 2 - ballRadius - 2, tel.slipSkid * 24.0));
+  // Sliding Inclinometer Ball (Sleek, High Contrast Metallic 3D)
+  const ballRadius = 4.2;
+  const ballOffset = Math.max(-tubeW / 2 + ballRadius + 1.5, Math.min(tubeW / 2 - ballRadius - 1.5, tel.slipSkid * 18.0));
   
   // Radial metallic 3D gradient for the ball
   const ballGrad = ctx.createRadialGradient(
-    ballOffset - 1.5, tubeY + tubeH / 2 - 1.5, 1,
+    ballOffset - 1.0, tubeY + tubeH / 2 - 1.0, 0.8,
     ballOffset, tubeY + tubeH / 2, ballRadius
   );
   ballGrad.addColorStop(0, "#ffffff");
@@ -3510,19 +3510,19 @@ function renderTurnCoordinator(ctx, tel, cx, cy, scale = 1.15) {
 
   ctx.fillStyle = ballGrad;
   ctx.strokeStyle = "#000000";
-  ctx.lineWidth = 1.2;
+  ctx.lineWidth = 1.0;
   ctx.beginPath();
   ctx.arc(ballOffset, tubeY + tubeH / 2, ballRadius, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // Bold Left 'L' and Right 'R' Indicators
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 13px 'Share Tech Mono', monospace";
+  // Left 'L' and Right 'R' Indicators
+  ctx.fillStyle = "#9ca3af";
+  ctx.font = "bold 10px 'Share Tech Mono', monospace";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("L", -tubeW / 2 - 11, tubeY + tubeH / 2);
-  ctx.fillText("R", tubeW / 2 + 11, tubeY + tubeH / 2);
+  ctx.fillText("L", -tubeW / 2 - 8, tubeY + tubeH / 2);
+  ctx.fillText("R", tubeW / 2 + 8, tubeY + tubeH / 2);
 
   ctx.restore();
 }
@@ -3671,10 +3671,10 @@ function renderPfdMaster(ctx, tel, w, h) {
   ctx.closePath();
   ctx.fill();
 
-  // Slip/Skid Trapezoid Brick Under Pointer
-  const slipOffsetPx = Math.max(-18, Math.min(18, tel.slipSkid * 22.0));
-  const brickW = 16, brickH = 5;
-  const brickY = -rollRadius + 15;
+  // Slip/Skid Trapezoid Brick Under Pointer (Sleek & Compact)
+  const slipOffsetPx = Math.max(-12, Math.min(12, tel.slipSkid * 16.0));
+  const brickW = 11, brickH = 3.5;
+  const brickY = -rollRadius + 13;
 
   ctx.fillStyle = "#ffffff";
   ctx.strokeStyle = "#000000";
@@ -3731,49 +3731,128 @@ function renderPfdMaster(ctx, tel, w, h) {
   ctx.strokeRect(cx + 44, cy - 3, 28, 6);
   ctx.restore();
 
-  // 5. AIRSPEED TAPE (LEFT) WITH BUG
-  const tapeLeftX = 48, tapeTopY = 32, tapeHgt = dh - 64;
-  const spdPxPerKt = tapeHgt / 60.0;
+  // 5. AIRSPEED TAPE (LEFT) WITH SPEED BUG, TREND VECTOR & DIGITAL AIRSPEED WINDOW
+  const tapeW = dw < 480 ? 46 : 52;
+  const tapeLeftX = tapeW;
+  const tapeTopY = 30;
+  const tapeHgt = Math.max(120, dh - 68);
+  const spdPxPerKt = tapeHgt / 55.0;
 
-  // Selected Speed Bug
-  ctx.fillStyle = "#000000";
+  // Selected Speed Bug Box at Top Left
+  const spdBugBoxW = tapeW + 4;
+  const spdBugBoxH = 20;
+  ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
   ctx.strokeStyle = "#00e5ff";
   ctx.lineWidth = 1.5;
-  ctx.fillRect(10, 4, 52, 22);
-  ctx.strokeRect(10, 4, 52, 22);
-  ctx.fillStyle = "#00e5ff";
-  ctx.font = "bold 14px 'Share Tech Mono', monospace";
-  ctx.textAlign = "center";
-  ctx.fillText(`${tel.selectedSpeedBug}`, 36, 20);
+  ctx.beginPath();
+  ctx.roundRect(4, 4, spdBugBoxW, spdBugBoxH, 3);
+  ctx.fill();
+  ctx.stroke();
 
+  ctx.fillStyle = "#00e5ff";
+  ctx.font = "bold 11px 'Share Tech Mono', monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(`${Math.round(tel.selectedSpeedBug)} KT`, 4 + spdBugBoxW / 2, 4 + spdBugBoxH / 2);
+
+  // Background Tape Column
   ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
   ctx.fillRect(0, tapeTopY, tapeLeftX, tapeHgt);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+  ctx.lineWidth = 1.0;
+  ctx.strokeRect(0, tapeTopY, tapeLeftX, tapeHgt);
+
+  // Color Arc Bands (Flaps White, Normal Green, Caution Yellow, Barber Pole Red)
+  const vFe = currentProfile.vFe || 85;
+  const vSo = currentProfile.vSo || 40;
+  const vNo = currentProfile.vNo || 125;
+  const vS = currentProfile.vS || 48;
+  const vNe = currentProfile.vNe || 160;
+
+  // White Flap Arc (Vso to Vfe)
+  const flapTop = cy - (vFe - tel.indicatedAirspeed) * spdPxPerKt;
+  const flapBot = cy - (vSo - tel.indicatedAirspeed) * spdPxPerKt;
+  const clampedFlapTop = Math.max(tapeTopY, Math.min(tapeTopY + tapeHgt, flapTop));
+  const clampedFlapBot = Math.max(tapeTopY, Math.min(tapeTopY + tapeHgt, flapBot));
+  if (clampedFlapBot > clampedFlapTop) {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(tapeLeftX - 6, clampedFlapTop, 6, clampedFlapBot - clampedFlapTop);
+  }
+
+  // Green Normal Operating Arc (Vs to Vno)
+  const normTop = cy - (vNo - tel.indicatedAirspeed) * spdPxPerKt;
+  const normBot = cy - (vS - tel.indicatedAirspeed) * spdPxPerKt;
+  const clampedNormTop = Math.max(tapeTopY, Math.min(tapeTopY + tapeHgt, normTop));
+  const clampedNormBot = Math.max(tapeTopY, Math.min(tapeTopY + tapeHgt, normBot));
+  if (clampedNormBot > clampedNormTop) {
+    ctx.fillStyle = "#00e676";
+    ctx.fillRect(tapeLeftX - 6, clampedNormTop, 6, clampedNormBot - clampedNormTop);
+  }
+
+  // Yellow Caution Arc (Vno to Vne)
+  const ctnTop = cy - (vNe - tel.indicatedAirspeed) * spdPxPerKt;
+  const ctnBot = cy - (vNo - tel.indicatedAirspeed) * spdPxPerKt;
+  const clampedCtnTop = Math.max(tapeTopY, Math.min(tapeTopY + tapeHgt, ctnTop));
+  const clampedCtnBot = Math.max(tapeTopY, Math.min(tapeTopY + tapeHgt, ctnBot));
+  if (clampedCtnBot > clampedCtnTop) {
+    ctx.fillStyle = "#facc15";
+    ctx.fillRect(tapeLeftX - 6, clampedCtnTop, 6, clampedCtnBot - clampedCtnTop);
+  }
+
+  // Red Vne Radial / Barber Strip (Vne and above)
+  const vneY = cy - (vNe - tel.indicatedAirspeed) * spdPxPerKt;
+  if (vneY >= tapeTopY && vneY <= tapeTopY + tapeHgt) {
+    ctx.fillStyle = "#ff1744";
+    ctx.fillRect(tapeLeftX - 7, tapeTopY, 7, Math.max(0, vneY - tapeTopY));
+  }
+
+  // Speed Ticks and Digits
+  const minSpdTick = Math.floor((tel.indicatedAirspeed - 28) / 10) * 10;
+  const maxSpdTick = Math.floor((tel.indicatedAirspeed + 28) / 10) * 10;
 
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(tapeLeftX - 6, cy - (currentProfile.vFe - tel.indicatedAirspeed) * spdPxPerKt, 6, (currentProfile.vFe - currentProfile.vSo) * spdPxPerKt);
-  ctx.fillStyle = "#00e676";
-  ctx.fillRect(tapeLeftX - 6, cy - (currentProfile.vNo - tel.indicatedAirspeed) * spdPxPerKt, 6, (currentProfile.vNo - currentProfile.vS) * spdPxPerKt);
-  ctx.fillStyle = "#facc15";
-  ctx.fillRect(tapeLeftX - 6, cy - (currentProfile.vNe - tel.indicatedAirspeed) * spdPxPerKt, 6, (currentProfile.vNe - currentProfile.vNo) * spdPxPerKt);
-
-  const minSpdTick = Math.floor((tel.indicatedAirspeed - 30) / 10) * 10;
-  const maxSpdTick = Math.floor((tel.indicatedAirspeed + 30) / 10) * 10;
-
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 14px 'Share Tech Mono', monospace";
+  ctx.font = "bold 13px 'Share Tech Mono', monospace";
   ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
 
   for (let s = minSpdTick; s <= maxSpdTick; s += 10) {
+    if (s < 0) continue;
     const y = cy - (s - tel.indicatedAirspeed) * spdPxPerKt;
-    if (y >= tapeTopY && y <= tapeTopY + tapeHgt) {
-      ctx.fillText(s.toString(), tapeLeftX - 10, y + 5);
-      ctx.fillRect(tapeLeftX - 6, y, 6, 2);
+    if (y >= tapeTopY + 4 && y <= tapeTopY + tapeHgt - 4) {
+      ctx.fillText(s.toString(), tapeLeftX - 10, y);
+      ctx.fillRect(tapeLeftX - 6, y - 1, 6, 2);
     }
   }
 
-  // Large Bold Speed Pointer Box (104)
-  const spdBoxW = 46, spdBoxH = 30;
-  const spdBoxX = 2, spdBoxY = cy - spdBoxH / 2;
+  // 6-Second Speed Trend Vector (Magenta Line from Speed Pointer)
+  const speedDiffPerSec = (tel.verticalSpeed / 101.268) * 0.12;
+  const trendVectorKt = speedDiffPerSec * 6.0;
+  if (Math.abs(trendVectorKt) > 1.2) {
+    const trendTargetY = cy - trendVectorKt * spdPxPerKt;
+    ctx.strokeStyle = "#e040fb";
+    ctx.lineWidth = 3.0;
+    ctx.beginPath();
+    ctx.moveTo(tapeLeftX - 3, cy);
+    ctx.lineTo(tapeLeftX - 3, Math.max(tapeTopY, Math.min(tapeTopY + tapeHgt, trendTargetY)));
+    ctx.stroke();
+
+    // Magenta Trend Arrow Head
+    const arrY = Math.max(tapeTopY, Math.min(tapeTopY + tapeHgt, trendTargetY));
+    const arrDir = Math.sign(trendTargetY - cy);
+    ctx.fillStyle = "#e040fb";
+    ctx.beginPath();
+    ctx.moveTo(tapeLeftX - 6, arrY);
+    ctx.lineTo(tapeLeftX, arrY);
+    ctx.lineTo(tapeLeftX - 3, arrY - arrDir * 5);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Large Bold Digital Airspeed Pointer Box with KT Unit
+  const spdBoxW = dw < 480 ? 46 : 52;
+  const spdBoxH = 28;
+  const spdBoxX = 2;
+  const spdBoxY = cy - spdBoxH / 2;
 
   ctx.fillStyle = "#000000";
   ctx.strokeStyle = "#ffffff";
@@ -3781,24 +3860,50 @@ function renderPfdMaster(ctx, tel, w, h) {
   ctx.fillRect(spdBoxX, spdBoxY, spdBoxW, spdBoxH);
   ctx.strokeRect(spdBoxX, spdBoxY, spdBoxW, spdBoxH);
 
+  // Chevron Pointer Tab pointing to current airspeed
   ctx.beginPath();
-  ctx.moveTo(spdBoxX + spdBoxW, spdBoxY + 6);
-  ctx.lineTo(spdBoxX + spdBoxW + 8, cy);
-  ctx.lineTo(spdBoxX + spdBoxW, spdBoxY + spdBoxH - 6);
+  ctx.moveTo(spdBoxX + spdBoxW, spdBoxY + 5);
+  ctx.lineTo(spdBoxX + spdBoxW + 7, cy);
+  ctx.lineTo(spdBoxX + spdBoxW, spdBoxY + spdBoxH - 5);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
 
+  // Speed Number (Large & Bold)
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 19px 'Share Tech Mono', monospace";
+  ctx.font = "bold 18px 'Share Tech Mono', monospace";
   ctx.textAlign = "center";
-  ctx.fillText(Math.round(tel.indicatedAirspeed).toString(), spdBoxX + spdBoxW / 2, cy + 6);
+  ctx.textBaseline = "middle";
+  ctx.fillText(Math.round(tel.indicatedAirspeed).toString(), spdBoxX + spdBoxW / 2 - 4, cy);
 
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "11px 'Share Tech Mono', monospace";
+  // Small 'KT' label on the pointer
+  ctx.fillStyle = "#00e5ff";
+  ctx.font = "bold 8px 'Share Tech Mono', monospace";
+  ctx.textAlign = "right";
+  ctx.fillText("KT", spdBoxX + spdBoxW - 2, cy + 7);
+
+  // Ground Speed & True Airspeed Dual Box at the Bottom of Airspeed Column
+  const gsBoxY = Math.min(dh - 34, tapeTopY + tapeHgt + 2);
+  ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
+  ctx.strokeStyle = "#374151";
+  ctx.lineWidth = 1.0;
+  ctx.beginPath();
+  ctx.roundRect(2, gsBoxY, tapeLeftX + 6, 28, 3);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.font = "bold 9.5px 'Share Tech Mono', monospace";
   ctx.textAlign = "left";
-  ctx.fillText(`TAS  ${Math.round(tel.trueAirspeed)}`, 6, dh - 16);
-  ctx.fillText(`GS   ${Math.round(tel.groundSpeed)}`, 6, dh - 4);
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#9ca3af";
+  ctx.fillText("GS", 5, gsBoxY + 8);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(`${Math.round(tel.groundSpeed)} KT`, 22, gsBoxY + 8);
+
+  ctx.fillStyle = "#9ca3af";
+  ctx.fillText("TAS", 5, gsBoxY + 20);
+  ctx.fillStyle = "#00e5ff";
+  ctx.fillText(`${Math.round(tel.trueAirspeed)} KT`, 24, gsBoxY + 20);
 
   // 5.1 G-METER READOUT BOX (Similar size to slip ball box, toggleable in settings)
   if (showGMeter) {
@@ -3926,9 +4031,9 @@ function renderPfdMaster(ctx, tel, w, h) {
 
   // 8. TURN COORDINATOR & INCLINOMETER GAUGE (If enabled in settings)
   if (showTurnCoordinator) {
-    const tcScale = dw < 450 ? 0.92 : 1.12;
+    const tcScale = dw < 450 ? 0.78 : 0.88;
     const tcX = cx;
-    const tcY = Math.floor(dh - 82);
+    const tcY = Math.floor(dh - 62);
     renderTurnCoordinator(ctx, tel, tcX, tcY, tcScale);
   }
 
