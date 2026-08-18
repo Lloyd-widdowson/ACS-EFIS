@@ -123,6 +123,33 @@ html, body {
   color: var(--aviation-cyan);
 }
 
+.status-indicator.warn {
+  background: rgba(250, 204, 21, 0.15);
+  border: 1px solid #facc15;
+  color: #facc15;
+}
+
+.status-indicator.warn .dot {
+  width: 6px;
+  height: 6px;
+  background: #facc15;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+.status-indicator.danger {
+  background: rgba(255, 23, 68, 0.15);
+  border: 1px solid #ff1744;
+  color: #ff1744;
+}
+
+.status-indicator.danger .dot {
+  width: 6px;
+  height: 6px;
+  background: #ff1744;
+  border-radius: 50%;
+}
+
 /* Garmin Synthetic Vision Switcher */
 .btn-svt {
   background: #111827;

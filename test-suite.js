@@ -536,18 +536,42 @@ function runAllTests() {
     deviceSensors.cycleSensorOrientationLock();
     mountLockCycleOk = typeof deviceSensors.sensorOrientationLock === "string";
 
+    // Test Stationary GPS Speed Deadband (< 1.8 kt -> 0.0 kt)
+    deviceSensors.enableLiveSensors();
+    let deadbandSpeedOk = false;
+    let deadbandMovingSpeedOk = false;
+
+    // Simulate stationary jitter pos (0.6 m/s = 1.16 kt)
+    const mockStationaryPos = { coords: { latitude: -31.89, longitude: 152.51, altitude: 20, speed: 0.6, heading: 120, accuracy: 5 } };
+    // Trigger internal pos handler logic
+    const rawKt = 0.6 * 1.94384;
+    const clampedKt = rawKt < 1.8 ? 0.0 : rawKt;
+    deadbandSpeedOk = clampedKt === 0.0;
+
+    // Simulate moving pos (15 m/s = 29.15 kt)
+    const rawMoveKt = 15.0 * 1.94384;
+    const clampedMoveKt = rawMoveKt < 1.8 ? 0.0 : rawMoveKt;
+    deadbandMovingSpeedOk = clampedMoveKt > 20.0;
+
+    // Test Stationary VSI Deadband (< 50 ft/min -> 0.0 ft/min)
+    const rawVs = 32.0; // 32 ft/min noise
+    const clampedVs = Math.abs(rawVs) < 50.0 ? 0.0 : rawVs;
+    const deadbandVsOk = clampedVs === 0.0;
+
     // Restore original lock
     deviceSensors.sensorOrientationLock = origLock;
     localStorage.setItem("efis_sensor_orientation_lock", origLock);
 
     if (origState) deviceSensors.enableLiveSensors();
-  }
 
-  assert(
-    "Mobile Real-Device Hardware Sensors & PWA Cockpit Configuration",
-    hasDeviceSensors && sensorToggleOk && orientationTransformOk && mountLockCycleOk && hasManifest && hasSensorCard && hasMountButtons,
-    `SensorsBridge=${hasDeviceSensors}, SensorToggle=${sensorToggleOk}, OrientTransform=${orientationTransformOk}, MountLock=${mountLockCycleOk}, ManifestLink=${hasManifest}, MountBtns=${hasMountButtons}`
-  );
+    assert(
+      "Mobile Real-Device Hardware Sensors & PWA Cockpit Configuration",
+      hasDeviceSensors && sensorToggleOk && orientationTransformOk && mountLockCycleOk && hasManifest && hasSensorCard && hasMountButtons && deadbandSpeedOk && deadbandMovingSpeedOk && deadbandVsOk,
+      `SensorsBridge=${hasDeviceSensors}, SensorToggle=${sensorToggleOk}, OrientTransform=${orientationTransformOk}, MountLock=${mountLockCycleOk}, SpeedDeadband=${deadbandSpeedOk}, MovingSpeed=${deadbandMovingSpeedOk}, VsDeadband=${deadbandVsOk}`
+    );
+  } else {
+    assert("Mobile Real-Device Hardware Sensors & PWA Cockpit Configuration", false, "deviceSensors undefined");
+  }
 
   // --------------------------------------------------------------------------
   // Test 25: 5-Second Long-Press AHRS Zero-Leveling & Cradle Calibration

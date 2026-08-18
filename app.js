@@ -2557,24 +2557,25 @@ class FlightSimEngine {
     this.destLon = 152.8631;
     this.destIdent = "YPMQ";
 
-    this.altitudeFt = 3500;
-    this.airspeedKt = 104;
-    this.headingDeg = 163;
-    this.groundTrackDeg = 163;
-    this.pitchDeg = 0.5;
-    this.rollDeg = -6.5;
+    this.altitudeFt = 0;
+    this.airspeedKt = 0;
+    this.groundSpeedKt = 0;
+    this.headingDeg = 0;
+    this.groundTrackDeg = 0;
+    this.pitchDeg = 0.0;
+    this.rollDeg = 0.0;
     this.targetPitchDeg = 0.0;
-    this.targetRollDeg = -6.0;
+    this.targetRollDeg = 0.0;
     this.turnRateDegPerSec = 0.0;
     this.verticalSpeedFpm = 0;
-    this.throttlePct = 0.72;
+    this.throttlePct = 0.0;
     this.rudderInput = 0.0;
     this.gForceZ = 1.0;
     this.minG = 1.0;
     this.maxG = 1.0;
     this.qnhHpa = 1013.25;
-    this.isAutopilot = true;
-    this.turbulenceLevel = 0.08;
+    this.isAutopilot = false;
+    this.turbulenceLevel = 0.0;
 
     // Garmin Autopilot Bugs
     this.selectedHeadingBug = 90;    // HDG 090°
@@ -2607,13 +2608,13 @@ class FlightSimEngine {
 
     this.rollDeg += (this.targetRollDeg - this.rollDeg) * 3.0 * dt;
 
-    const speedMps = Math.max(this.airspeedKt * 0.514444, 15);
-    const turnRateRad = (9.80665 * Math.tan(this.rollDeg * Math.PI / 180)) / speedMps;
+    const speedMps = Math.max(this.airspeedKt * 0.514444, 0);
+    const turnRateRad = speedMps > 5 ? ((9.80665 * Math.tan(this.rollDeg * Math.PI / 180)) / speedMps) : 0;
     this.turnRateDegPerSec = turnRateRad * 180 / Math.PI;
     this.headingDeg = (this.headingDeg + this.turnRateDegPerSec * dt + 360) % 360;
 
     this.pitchDeg += (this.targetPitchDeg - this.pitchDeg) * 2.0 * dt;
-    this.verticalSpeedFpm = Math.sin((this.pitchDeg) * Math.PI / 180) * this.airspeedKt * 101.268;
+    this.verticalSpeedFpm = (this.airspeedKt > 5) ? Math.sin((this.pitchDeg) * Math.PI / 180) * this.airspeedKt * 101.268 : 0;
     this.altitudeFt += (this.verticalSpeedFpm / 60.0) * dt;
 
     const turbRoll = (Math.random() - 0.5) * 1.0 * this.turbulenceLevel;
@@ -2624,8 +2625,13 @@ class FlightSimEngine {
     if (this.gForceZ < this.minG) this.minG = this.gForceZ;
     if (this.gForceZ > this.maxG) this.maxG = this.gForceZ;
 
-    this.airspeedKt = (55 + this.throttlePct * 115) - Math.max(-30, Math.min(50, this.pitchDeg * 2.5));
-    this.groundSpeedKt = this.airspeedKt + 4.0;
+    if (this.throttlePct > 0.05) {
+      this.airspeedKt = (55 + this.throttlePct * 115) - Math.max(-30, Math.min(50, this.pitchDeg * 2.5));
+      this.groundSpeedKt = this.airspeedKt + 4.0;
+    } else {
+      this.airspeedKt = 0;
+      this.groundSpeedKt = 0;
+    }
     this.groundTrackDeg = (this.headingDeg + 1.5 + 360) % 360;
 
     const distMovedNm = this.groundSpeedKt * (dt / 3600);
@@ -2649,7 +2655,7 @@ class FlightSimEngine {
       groundTrack: this.groundTrackDeg,
       turnRateDegPerSec: this.turnRateDegPerSec,
       indicatedAirspeed: this.airspeedKt,
-      trueAirspeed: this.airspeedKt + 5.0,
+      trueAirspeed: this.airspeedKt > 0 ? this.airspeedKt + 5.0 : 0,
       groundSpeed: this.groundSpeedKt,
       indicatedAltitude: this.altitudeFt,
       verticalSpeed: this.verticalSpeedFpm,
@@ -2671,8 +2677,12 @@ class FlightSimEngine {
       selectedCourseBug: this.selectedCourseBug,
       targetVsFpm: this.targetVsFpm,
       qnhHpa: this.qnhHpa,
-      isStall: this.airspeedKt <= currentProfile.vS,
-      isOverspeed: this.airspeedKt >= currentProfile.vNe
+      isStall: this.airspeedKt > 5 && this.airspeedKt <= currentProfile.vS,
+      isOverspeed: this.airspeedKt >= currentProfile.vNe,
+      airspeedTrend: 0,
+      hasGpsFix: false,
+      hasAhrsFix: false,
+      gpsAccuracyM: null
     };
   }
 }
@@ -2856,31 +2866,45 @@ const SENSOR_ORIENTATION_OPTIONS = [
 
 class DeviceSensorBridge {
   constructor() {
-    this.useLiveSensors = localStorage.getItem("efis_use_live_sensors") === "true";
+    // Default to true (Hardware Sensor pipeline active by default)
+    const stored = localStorage.getItem("efis_use_live_sensors");
+    this.useLiveSensors = stored === null ? true : (stored === "true");
     this.sensorOrientationLock = localStorage.getItem("efis_sensor_orientation_lock") || "auto";
+
     this.hasGpsFix = false;
     this.hasAhrsFix = false;
+    this.hasBaroFix = false;
     this.gpsWatchId = null;
+    this.gpsAccuracyM = null;
+    this.gpsDenied = false;
 
-    this.liveLat = -31.8986;
-    this.liveLon = 152.5142;
-    this.liveAltFt = 3500;
-    this.liveSpeedKt = 110;
-    this.liveTrackDeg = 160;
-    this.livePitchDeg = 0;
-    this.liveRollDeg = 0;
-    this.liveHeadingDeg = 160;
+    // Real Hardware Measured State (Zero/Stationary Baseline)
+    this.liveLat = userHomeAirport.lat;
+    this.liveLon = userHomeAirport.lon;
+    this.liveAltFt = 0;
+    this.liveSpeedKt = 0.0;
+    this.liveTrackDeg = 0;
+    this.liveHeadingDeg = 0;
+    this.livePitchDeg = 0.0;
+    this.liveRollDeg = 0.0;
     this.liveGForce = 1.0;
-    this.liveVsFpm = 0;
-    this.lastAlt = 3500;
-    this.lastAltTime = Date.now();
+    this.liveVsFpm = 0.0;
+    this.pressureHpa = 1013.25;
+
+    // Stationary deadband & rate filtering
+    this.lastAlt = null;
+    this.lastAltTime = 0;
+    this.lastGpsSpeed = 0;
+    this.lastSpeedTime = 0;
+    this.speedTrendKt = 0;
 
     this.currentScreenAngle = 0;
     this.boundOrientationHandler = null;
     this.boundMotionHandler = null;
+    this.barometerSensor = null;
 
     if (this.useLiveSensors) {
-      setTimeout(() => this.enableLiveSensors(), 500);
+      setTimeout(() => this.enableLiveSensors(), 200);
     }
   }
 
@@ -2891,7 +2915,6 @@ class DeviceSensorBridge {
 
     // Auto Mode:
     if (typeof window !== 'undefined') {
-      // Check current EFIS application view mode first
       if (typeof currentOrientationIndex !== 'undefined' && typeof ORIENTATION_MODES !== 'undefined' && ORIENTATION_MODES[currentOrientationIndex]) {
         const modeId = ORIENTATION_MODES[currentOrientationIndex].id;
         if (modeId.includes("landscape")) return 90;
@@ -2985,53 +3008,89 @@ class DeviceSensorBridge {
   enableLiveSensors() {
     this.useLiveSensors = true;
     localStorage.setItem("efis_use_live_sensors", "true");
+    this.gpsDenied = false;
 
-    // 1. Geolocation (Real GPS)
+    // 1. Geolocation (Real Hardware GPS Receiver)
     if ("geolocation" in navigator) {
       this.gpsWatchId = navigator.geolocation.watchPosition(
         (pos) => {
           this.hasGpsFix = true;
+          this.gpsDenied = false;
           this.liveLat = pos.coords.latitude;
           this.liveLon = pos.coords.longitude;
+          this.gpsAccuracyM = (pos.coords.accuracy !== null && !isNaN(pos.coords.accuracy)) ? Math.round(pos.coords.accuracy) : null;
           sim.lat = this.liveLat;
           sim.lon = this.liveLon;
 
-          if (pos.coords.altitude !== null && pos.coords.altitude !== undefined) {
-            const newAltFt = pos.coords.altitude * 3.28084;
-            const now = Date.now();
-            const dtMin = (now - this.lastAltTime) / 60000;
-            if (dtMin > 0.01) {
-              this.liveVsFpm = (newAltFt - this.lastAlt) / dtMin;
-              this.lastAlt = newAltFt;
-              this.lastAltTime = now;
+          // Ground Speed & Strict Stationary Zero-Clamping (< 1.8 kt -> 0.0 kt)
+          const rawSpeedMps = pos.coords.speed;
+          const rawSpeedKt = (rawSpeedMps !== null && !isNaN(rawSpeedMps) && rawSpeedMps >= 0) ? (rawSpeedMps * 1.94384) : 0.0;
+          const SPEED_DEADBAND_KT = 1.8; // Eliminates stationary wandering jitter
+          if (rawSpeedKt < SPEED_DEADBAND_KT) {
+            this.liveSpeedKt = 0.0;
+            this.speedTrendKt = 0.0;
+          } else {
+            this.liveSpeedKt = rawSpeedKt;
+            const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+            if (this.lastSpeedTime > 0) {
+              const dtSec = Math.max(0.2, (now - this.lastSpeedTime) / 1000.0);
+              const accelKtPerSec = (this.liveSpeedKt - this.lastGpsSpeed) / dtSec;
+              this.speedTrendKt = Math.max(-25, Math.min(25, accelKtPerSec * 6.0));
             }
-            this.liveAltFt = newAltFt;
-            sim.altitudeFt = newAltFt;
+            this.lastGpsSpeed = this.liveSpeedKt;
+            this.lastSpeedTime = now;
           }
-          if (pos.coords.speed !== null && pos.coords.speed !== undefined && !isNaN(pos.coords.speed)) {
-            this.liveSpeedKt = pos.coords.speed * 1.94384;
-            sim.airspeedKt = this.liveSpeedKt;
-            sim.groundSpeedKt = this.liveSpeedKt;
-          }
-          if (pos.coords.heading !== null && pos.coords.heading !== undefined && !isNaN(pos.coords.heading)) {
+          sim.airspeedKt = this.liveSpeedKt;
+          sim.groundSpeedKt = this.liveSpeedKt;
+
+          // GPS Track vs. Magnetometer Heading
+          if (pos.coords.heading !== null && !isNaN(pos.coords.heading) && pos.coords.heading >= 0) {
             this.liveTrackDeg = pos.coords.heading;
-            this.liveHeadingDeg = pos.coords.heading;
-            sim.headingDeg = this.liveHeadingDeg;
-            sim.groundTrackDeg = this.liveTrackDeg;
+            if (this.liveSpeedKt >= 2.5) {
+              this.liveHeadingDeg = ahrsFilter.filterHeading(pos.coords.heading);
+              sim.headingDeg = this.liveHeadingDeg;
+              sim.groundTrackDeg = this.liveTrackDeg;
+            }
           }
+
+          // Altitude & Vertical Speed Processing
+          if (pos.coords.altitude !== null && !isNaN(pos.coords.altitude)) {
+            const gpsAltFt = pos.coords.altitude * 3.28084;
+            if (!this.hasBaroFix) {
+              this.liveAltFt = gpsAltFt;
+              sim.altitudeFt = gpsAltFt;
+            }
+            const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+            if (this.lastAlt !== null && this.lastAltTime > 0) {
+              const dtMin = (now - this.lastAltTime) / 60000.0;
+              if (dtMin > 0.005) {
+                const rawVsFpm = (this.liveAltFt - this.lastAlt) / dtMin;
+                const VSI_DEADBAND_FPM = 50.0;
+                const filteredVs = (Math.abs(rawVsFpm) < VSI_DEADBAND_FPM) ? 0.0 : rawVsFpm;
+                this.liveVsFpm += (filteredVs - this.liveVsFpm) * 0.25;
+                sim.verticalSpeedFpm = this.liveVsFpm;
+              }
+            }
+            this.lastAlt = this.liveAltFt;
+            this.lastAltTime = now;
+          }
+
           this.updateUiStatus();
         },
         (err) => {
-          console.warn("GPS Warning:", err.message);
+          console.warn("GPS Status:", err.message);
           this.hasGpsFix = false;
+          if (err.code === 1) { // PERMISSION_DENIED
+            this.gpsDenied = true;
+          }
           this.updateUiStatus();
         },
-        { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
       );
     }
 
-    // 2. DeviceOrientation (Real Gyro Attitude / Pitch & Roll with Dynamic Screen Rotation)
-    if (window.DeviceOrientationEvent) {
+    // 2. DeviceOrientation (Real Gyro Attitude / Pitch & Roll & Compass)
+    if (typeof window !== 'undefined' && window.DeviceOrientationEvent) {
       this.boundOrientationHandler = (e) => {
         if (e.beta !== null && e.gamma !== null) {
           this.hasAhrsFix = true;
@@ -3042,9 +3101,21 @@ class DeviceSensorBridge {
           sim.pitchDeg = this.livePitchDeg;
           sim.rollDeg = this.liveRollDeg;
 
-          if (e.alpha !== null && !isNaN(e.alpha)) {
-            this.liveHeadingDeg = ahrsFilter.filterHeading(rawHdg);
-            if (!this.hasGpsFix) sim.headingDeg = this.liveHeadingDeg;
+          let compHdg = null;
+          if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null && !isNaN(e.webkitCompassHeading)) {
+            compHdg = e.webkitCompassHeading;
+          } else if (e.alpha !== null && !isNaN(e.alpha)) {
+            compHdg = rawHdg;
+          }
+
+          if (compHdg !== null) {
+            const filteredCompass = ahrsFilter.filterHeading(compHdg);
+            if (this.liveSpeedKt < 2.5 || !this.hasGpsFix) {
+              this.liveHeadingDeg = filteredCompass;
+              this.liveTrackDeg = filteredCompass;
+              sim.headingDeg = filteredCompass;
+              sim.groundTrackDeg = filteredCompass;
+            }
           }
           this.updateUiStatus();
         }
@@ -3052,19 +3123,48 @@ class DeviceSensorBridge {
       window.addEventListener("deviceorientation", this.boundOrientationHandler, true);
     }
 
-    // 3. DeviceMotion (Real Accelerometer G-Force with Jitter Filter)
-    if (window.DeviceMotionEvent) {
+    // 3. DeviceMotion (Real Accelerometer with 1.0G Resting Clamping)
+    if (typeof window !== 'undefined' && window.DeviceMotionEvent) {
       this.boundMotionHandler = (e) => {
-        if (e.accelerationIncludingGravity && e.accelerationIncludingGravity.z !== null) {
-          const rawG = Math.abs(e.accelerationIncludingGravity.z) / 9.80665;
-          this.liveGForce = ahrsFilter.filterGForce(Math.max(0.2, Math.min(6.0, rawG)));
-          sim.gForceZ = this.liveGForce;
+        if (e.accelerationIncludingGravity) {
+          const ax = e.accelerationIncludingGravity.x || 0;
+          const ay = e.accelerationIncludingGravity.y || 0;
+          const az = e.accelerationIncludingGravity.z || 0;
+          const totalAccel = Math.sqrt(ax * ax + ay * ay + az * az);
+          if (totalAccel > 0) {
+            let rawG = totalAccel / 9.80665;
+            // Stationary 1.0G Zero-Resting Clamping (1.0G ± 0.06G)
+            if (Math.abs(rawG - 1.0) < 0.06) {
+              rawG = 1.0;
+            }
+            this.liveGForce = ahrsFilter.filterGForce(Math.max(0.2, Math.min(6.0, rawG)));
+            sim.gForceZ = this.liveGForce;
+          }
         }
       };
       window.addEventListener("devicemotion", this.boundMotionHandler, true);
     }
 
-    // Listen to physical screen orientation change events
+    // 4. Native Generic Sensor Barometer API
+    if (typeof window !== 'undefined' && 'Barometer' in window) {
+      try {
+        this.barometerSensor = new window.Barometer({ frequency: 10 });
+        this.barometerSensor.addEventListener('reading', () => {
+          if (this.barometerSensor.pressure) {
+            this.hasBaroFix = true;
+            this.pressureHpa = this.barometerSensor.pressure;
+            const qnh = sim.qnhHpa || 1013.25;
+            const baroAltFt = 145366.45 * (1.0 - Math.pow(this.pressureHpa / qnh, 0.190284));
+            this.liveAltFt = baroAltFt;
+            sim.altitudeFt = baroAltFt;
+          }
+        });
+        this.barometerSensor.start();
+      } catch(e) {
+        this.hasBaroFix = false;
+      }
+    }
+
     window.addEventListener("orientationchange", () => this.handleOrientationChange());
     if (window.screen && window.screen.orientation) {
       window.screen.orientation.addEventListener("change", () => this.handleOrientationChange());
@@ -3088,8 +3188,13 @@ class DeviceSensorBridge {
       window.removeEventListener("devicemotion", this.boundMotionHandler, true);
       this.boundMotionHandler = null;
     }
+    if (this.barometerSensor) {
+      try { this.barometerSensor.stop(); } catch(e) {}
+      this.barometerSensor = null;
+    }
     this.hasGpsFix = false;
     this.hasAhrsFix = false;
+    this.hasBaroFix = false;
     this.updateUiStatus();
   }
 
@@ -3099,6 +3204,58 @@ class DeviceSensorBridge {
     } else {
       this.enableLiveSensors();
     }
+  }
+
+  getTelemetry(dt) {
+    if (!this.useLiveSensors) {
+      return sim.update(dt);
+    }
+
+    const distToDest = calculateDistanceNm(this.liveLat, this.liveLon, sim.destLat, sim.destLon);
+    const brgToDest = calculateBearingDeg(this.liveLat, this.liveLon, sim.destLat, sim.destLon);
+    const angleDiff = (brgToDest - this.liveTrackDeg) * Math.PI / 180;
+    const xtkNm = Math.sin(angleDiff) * distToDest;
+
+    // Rate of turn
+    const turnRate = (ahrsFilter && Math.abs(ahrsFilter.turnRate) > 0.1) ? ahrsFilter.turnRate : 0.0;
+    const slipVal = (this.liveGForce > 0) ? (Math.sin(this.liveRollDeg * Math.PI / 180) * 0.2) : 0.0;
+
+    return {
+      pitch: this.livePitchDeg - sim.pitchOffset,
+      roll: this.liveRollDeg - sim.rollOffset,
+      heading: this.liveHeadingDeg,
+      groundTrack: this.liveTrackDeg,
+      turnRateDegPerSec: turnRate,
+      indicatedAirspeed: this.liveSpeedKt,
+      trueAirspeed: this.liveSpeedKt,
+      groundSpeed: this.liveSpeedKt,
+      indicatedAltitude: this.liveAltFt,
+      verticalSpeed: this.liveVsFpm,
+      gForceZ: this.liveGForce,
+      gForceMin: 1.0,
+      gForceMax: 1.0,
+      slipSkid: slipVal,
+      latitude: this.liveLat,
+      longitude: this.liveLon,
+      destIdent: sim.destIdent,
+      destLat: sim.destLat,
+      destLon: sim.destLon,
+      destDistanceNm: distToDest,
+      destBearingDeg: brgToDest,
+      xtkNm: xtkNm,
+      selectedHeadingBug: sim.selectedHeadingBug,
+      selectedAltitudeBug: sim.selectedAltitudeBug,
+      selectedSpeedBug: sim.selectedSpeedBug,
+      selectedCourseBug: sim.selectedCourseBug,
+      targetVsFpm: sim.targetVsFpm,
+      qnhHpa: sim.qnhHpa,
+      isStall: this.liveSpeedKt > 5.0 && this.liveSpeedKt <= currentProfile.vS,
+      isOverspeed: this.liveSpeedKt >= currentProfile.vNe,
+      airspeedTrend: this.speedTrendKt,
+      hasGpsFix: this.hasGpsFix,
+      hasAhrsFix: this.hasAhrsFix,
+      gpsAccuracyM: this.gpsAccuracyM
+    };
   }
 
   updateUiStatus() {
@@ -3131,40 +3288,60 @@ class DeviceSensorBridge {
 
     if (this.useLiveSensors) {
       if (label) {
-        label.textContent = `LIVE PHONE SENSORS [${orientDisplay}]`;
+        label.textContent = `PHYSICAL HARDWARE SENSORS [${orientDisplay}]`;
         label.style.color = "#00e676";
       }
       if (btn) {
-        btn.textContent = "🔄 SWITCH TO VIRTUAL SIMULATOR";
+        btn.textContent = "🔄 SWITCH TO DEV SIMULATOR (MOCK DATA)";
         btn.className = "btn-yellow";
       }
-      if (gpsCoords) gpsCoords.textContent = `${this.liveLat.toFixed(4)}°, ${this.liveLon.toFixed(4)}° (${this.hasGpsFix ? '3D FIX' : 'ACQUIRING...'})`;
-      if (ahrsReadout) ahrsReadout.textContent = `Pitch ${this.livePitchDeg.toFixed(1)}° | Roll ${this.liveRollDeg.toFixed(1)}° (${this.hasAhrsFix ? `ACTIVE 60Hz - ${orientDisplay}` : 'STANDBY'})`;
+      if (gpsCoords) {
+        const fixStr = this.hasGpsFix ? `3D FIX (±${this.gpsAccuracyM || 5}m)` : (this.gpsDenied ? 'PERMISSION DENIED' : 'ACQUIRING...');
+        gpsCoords.textContent = `${this.liveLat.toFixed(4)}°, ${this.liveLon.toFixed(4)}° (${fixStr})`;
+      }
+      if (ahrsReadout) {
+        const ahrsStr = this.hasAhrsFix ? `ACTIVE 60Hz - ${orientDisplay}` : 'STANDBY / FLAT LEVEL';
+        ahrsReadout.textContent = `Pitch ${this.livePitchDeg.toFixed(1)}° | Roll ${this.liveRollDeg.toFixed(1)}° (${ahrsStr})`;
+      }
       if (gpsStatus) {
-        gpsStatus.innerHTML = `<span class="dot"></span> ${this.hasGpsFix ? 'GPS LIVE (3D)' : 'GPS ACQUIRING'}`;
-        gpsStatus.className = `status-indicator ${this.hasGpsFix ? 'live' : 'warn'}`;
+        if (this.hasGpsFix) {
+          const accStr = this.gpsAccuracyM ? ` (±${this.gpsAccuracyM}m)` : '';
+          gpsStatus.innerHTML = `<span class="dot"></span> GPS: 3D FIX${accStr}`;
+          gpsStatus.className = "status-indicator live";
+        } else if (this.gpsDenied) {
+          gpsStatus.innerHTML = `<span class="dot"></span> GPS: NO SIGNAL / DENIED`;
+          gpsStatus.className = "status-indicator danger";
+        } else {
+          gpsStatus.innerHTML = `<span class="dot"></span> GPS: ACQUIRING...`;
+          gpsStatus.className = "status-indicator warn";
+        }
       }
       if (ahrsStatus) {
-        ahrsStatus.textContent = this.hasAhrsFix ? `AHRS ${orientDisplay} 60Hz` : 'AHRS STANDBY';
-        ahrsStatus.className = `status-indicator ${this.hasAhrsFix ? 'live' : 'ok'}`;
+        if (this.hasAhrsFix) {
+          ahrsStatus.textContent = `AHRS: HARDWARE (60Hz)`;
+          ahrsStatus.className = "status-indicator live";
+        } else {
+          ahrsStatus.textContent = `AHRS: SENSORS UNAVAILABLE`;
+          ahrsStatus.className = "status-indicator warn";
+        }
       }
     } else {
       if (label) {
-        label.textContent = "VIRTUAL SIMULATOR";
-        label.style.color = "#00e5ff";
+        label.textContent = "DEVELOPER SIMULATOR (MOCK DATA)";
+        label.style.color = "#facc15";
       }
       if (btn) {
-        btn.textContent = "🔄 SWITCH TO LIVE PHONE SENSORS (GPS + AHRS)";
+        btn.textContent = "🔄 SWITCH TO PHYSICAL HARDWARE SENSORS (DEFAULT)";
         btn.className = "btn-green";
       }
       if (gpsCoords) gpsCoords.textContent = `${sim.lat.toFixed(4)}°, ${sim.lon.toFixed(4)}° (SIMULATED)`;
       if (ahrsReadout) ahrsReadout.textContent = `Pitch ${sim.pitchDeg.toFixed(1)}° | Roll ${sim.rollDeg.toFixed(1)}° (SIMULATED)`;
       if (gpsStatus) {
-        gpsStatus.innerHTML = '<span class="dot"></span> GPS 3D';
-        gpsStatus.className = "status-indicator live";
+        gpsStatus.innerHTML = '<span class="dot"></span> GPS: SIMULATED';
+        gpsStatus.className = "status-indicator ok";
       }
       if (ahrsStatus) {
-        ahrsStatus.textContent = "AHRS 60Hz";
+        ahrsStatus.textContent = "AHRS: SIMULATED";
         ahrsStatus.className = "status-indicator ok";
       }
     }
@@ -3222,13 +3399,34 @@ class UiTelemetryInterpolator {
     if (this.display.roll > 180) this.display.roll -= 360;
     else if (this.display.roll < -180) this.display.roll += 360;
     this.display.slipSkid += (targetTel.slipSkid - this.display.slipSkid) * factor;
+
     this.display.indicatedAirspeed += (targetTel.indicatedAirspeed - this.display.indicatedAirspeed) * factor;
+    if (targetTel.indicatedAirspeed === 0 && Math.abs(this.display.indicatedAirspeed) < 0.2) {
+      this.display.indicatedAirspeed = 0;
+    }
     this.display.trueAirspeed += (targetTel.trueAirspeed - this.display.trueAirspeed) * factor;
+    if (targetTel.trueAirspeed === 0 && Math.abs(this.display.trueAirspeed) < 0.2) {
+      this.display.trueAirspeed = 0;
+    }
     this.display.groundSpeed += (targetTel.groundSpeed - this.display.groundSpeed) * factor;
+    if (targetTel.groundSpeed === 0 && Math.abs(this.display.groundSpeed) < 0.2) {
+      this.display.groundSpeed = 0;
+    }
+
     this.display.indicatedAltitude += (targetTel.indicatedAltitude - this.display.indicatedAltitude) * factor;
     this.display.verticalSpeed += (targetTel.verticalSpeed - this.display.verticalSpeed) * factor;
+    if (targetTel.verticalSpeed === 0 && Math.abs(this.display.verticalSpeed) < 2.0) {
+      this.display.verticalSpeed = 0;
+    }
+
     this.display.gForceZ += (targetTel.gForceZ - this.display.gForceZ) * factor;
+    if (targetTel.gForceZ === 1.0 && Math.abs(this.display.gForceZ - 1.0) < 0.02) {
+      this.display.gForceZ = 1.0;
+    }
     this.display.turnRateDegPerSec += (targetTel.turnRateDegPerSec - this.display.turnRateDegPerSec) * factor;
+    if (targetTel.turnRateDegPerSec === 0 && Math.abs(this.display.turnRateDegPerSec) < 0.05) {
+      this.display.turnRateDegPerSec = 0;
+    }
 
     // Shortest-Arc Angular LERP for Heading & Track
     let hdgDiff = (targetTel.heading - this.display.heading + 540) % 360 - 180;
@@ -6509,7 +6707,7 @@ function mainLoop(now) {
   const dt = Math.min(0.05, Math.max(0.005, (now - lastTime) / 1000.0));
   lastTime = now;
 
-  const tel = sim.update(dt);
+  const tel = deviceSensors.getTelemetry(dt);
   const renderTel = uiInterpolator.update(tel, dt);
 
   // Blackbox auto-recording
@@ -6533,17 +6731,17 @@ function mainLoop(now) {
     }
   }
 
-  // Stall alert
+  // Stall alert (Active only when airborne/moving > 5 kt)
   const warnBanner = document.getElementById("warning-banner");
   if (warnBanner) {
-    if (tel.isStall) {
+    if (tel.isStall && (tel.groundSpeed > 5 || tel.indicatedAirspeed > 5)) {
       warnBanner.textContent = "STALL WARNING";
       warnBanner.classList.remove("hidden");
       const stallChk = document.getElementById("chk-stall-horn");
       if (stallChk && stallChk.checked) {
         audioSynth.startStallHorn();
       }
-    } else if (tel.isOverspeed) {
+    } else if (tel.isOverspeed && (tel.groundSpeed > 5 || tel.indicatedAirspeed > 5)) {
       warnBanner.textContent = "OVERSPEED VNE";
       warnBanner.classList.remove("hidden");
     } else {
