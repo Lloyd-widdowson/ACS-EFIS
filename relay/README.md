@@ -12,6 +12,8 @@ GitHub Pages can't proxy requests, and the public ADS-B networks (adsb.lol, adsb
 
 Within a few seconds the header should read `ADS-B <count>`, and Map Controls should show `Live: N AC (Relay)`.
 
+**Networks that refuse Cloudflare:** adsb.lol, adsb.fi and airplanes.live refuse requests from Cloudflare's servers (HTTP 403 or 503), so the relay falls back to the OpenSky Network. Anonymous OpenSky use allows about 400 requests a day, and the relay reuses each answer for 20 s. For more than that, create a free account at https://opensky-network.org. Make an API client under **Account → API Client**, then add `OPENSKY_CLIENT_ID` and `OPENSKY_CLIENT_SECRET` as secrets in the Worker's **Settings → Variables and Secrets**. That raises the limit to 4,000 a day.
+
 **Testing:** open the Worker's address in a browser. You should see either aircraft JSON (`{"ac":[...]}`) or an error naming which network failed and why. Seeing "Hello World!" means the code wasn't pasted in, and you need to deploy it again. Under **Traffic Relay URL**, Settings shows the result of the app's last attempt with each source.
 
 The relay answers direct browser visits and web pages from the sites listed in `ALLOWED_ORIGINS`. Add yours there if you host the app somewhere else.

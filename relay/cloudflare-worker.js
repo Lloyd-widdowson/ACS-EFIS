@@ -50,8 +50,81 @@ async function fetchNetwork(source) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// OpenSky Network fallback. The community networks above refuse Cloudflare's servers,
+// OpenSky may not. Anonymous use allows 400 credits a day (1 credit per call here);
+// add OPENSKY_CLIENT_ID and OPENSKY_CLIENT_SECRET as Worker secrets for 4,000 a day.
+// Results are reused for 20 s so the app's 4 s polling doesn't burn credits.
+// ---------------------------------------------------------------------------
+const refusedUntil = {};
+const OPENSKY_CACHE_MS = 20000;
+const openskyCache = new Map();
+let openskyToken = null;
+
+async function getOpenSkyToken(env) {
+  if (!env || !env.OPENSKY_CLIENT_ID || !env.OPENSKY_CLIENT_SECRET) return null;
+  if (openskyToken && openskyToken.expires > Date.now() + 60000) return openskyToken.value;
+  const resp = await fetch("https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: env.OPENSKY_CLIENT_ID,
+      client_secret: env.OPENSKY_CLIENT_SECRET
+    })
+  });
+  if (!resp.ok) throw new Error(`login HTTP ${resp.status}`);
+  const data = await resp.json();
+  openskyToken = { value: data.access_token, expires: Date.now() + (data.expires_in || 1800) * 1000 };
+  return openskyToken.value;
+}
+
+async function fetchOpenSky(lat, lon, env) {
+  // 4.8 x 4.8 degree box (about 140 NM each way) stays within OpenSky's 1-credit size
+  const key = `${lat.toFixed(1)},${lon.toFixed(1)}`;
+  const cached = openskyCache.get(key);
+  if (cached && Date.now() - cached.time < OPENSKY_CACHE_MS) return cached.ac;
+
+  const box = 2.4;
+  const url = `https://opensky-network.org/api/states/all?lamin=${(lat - box).toFixed(3)}&lomin=${(lon - box).toFixed(3)}&lamax=${(lat + box).toFixed(3)}&lomax=${(lon + box).toFixed(3)}`;
+  const headers = { "User-Agent": "ACS-EFIS-relay (personal hobby EFIS)" };
+  const token = await getOpenSkyToken(env);
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  let data;
+  try {
+    const resp = await fetch(url, { headers, signal: controller.signal });
+    if (!resp.ok) throw new Error(resp.status === 429 ? "HTTP 429 (daily limit used up)" : `HTTP ${resp.status}`);
+    data = await resp.json();
+  } catch (e) {
+    throw new Error(e && e.name === "AbortError" ? "timed out" : (e && e.message) || "failed");
+  } finally {
+    clearTimeout(timer);
+  }
+
+  // Convert OpenSky state vectors to the ADSBexchange v2 fields the app reads; skip aircraft on the ground
+  const ac = (data.states || [])
+    .filter(st => st[5] != null && st[6] != null && st[0] && !st[8])
+    .map(st => ({
+      hex: st[0],
+      flight: (st[1] || "").trim(),
+      lat: st[6],
+      lon: st[5],
+      alt_baro: st[7] != null ? Math.round(st[7] * 3.28084) : (st[13] != null ? Math.round(st[13] * 3.28084) : 0),
+      gs: st[9] != null ? Math.round(st[9] * 1.94384) : 0,
+      track: st[10] != null ? Math.round(st[10]) : 0,
+      baro_rate: st[11] != null ? Math.round(st[11] * 196.85) : 0,
+      squawk: st[14] || ""
+    }));
+  openskyCache.set(key, { time: Date.now(), ac });
+  if (openskyCache.size > 50) openskyCache.delete(openskyCache.keys().next().value);
+  return ac;
+}
+
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
     if (origin && !ALLOWED_ORIGINS.includes(origin)) {
       return new Response("Forbidden", { status: 403 });
@@ -76,18 +149,35 @@ export default {
       "airplanes.live": `https://api.airplanes.live/v2/point/${la}/${lo}/${dist}`
     };
 
-    // Ask all networks at once and answer with the first that works
+    // Ask all networks at once and answer with the first that works. A network that
+    // refuses this server (HTTP 403) is skipped for 10 minutes rather than asked every poll.
     const tried = {};
-    const attempts = Object.entries(sources).map(([name, src]) =>
-      fetchNetwork(src).then(
+    const now = Date.now();
+    const attempts = Object.entries(sources).map(([name, src]) => {
+      if ((refusedUntil[name] || 0) > now) {
+        tried[name] = "HTTP 403 (refused recently, skipped)";
+        return Promise.reject(new Error("skipped"));
+      }
+      return fetchNetwork(src).then(
         ac => ({ name, ac }),
-        err => { tried[name] = err.message; throw err; }
-      )
-    );
+        err => {
+          tried[name] = err.message;
+          if (err.message === "HTTP 403") refusedUntil[name] = now + 10 * 60 * 1000;
+          throw err;
+        }
+      );
+    });
     try {
       const { name, ac } = await Promise.any(attempts);
       return json({ ac, source: name }, 200, origin);
     } catch (e) {
+      // All community networks refused: fall back to OpenSky
+      try {
+        const ac = await fetchOpenSky(lat, lon, env);
+        return json({ ac, source: "OpenSky", tried }, 200, origin);
+      } catch (osErr) {
+        tried.OpenSky = osErr.message;
+      }
       const reasons = Object.entries(tried).map(([n, r]) => `${n} ${r}`).join(", ");
       return json({ error: `no ADS-B network answered (${reasons})`, tried }, 502, origin);
     }
