@@ -2989,10 +2989,13 @@ class DeviceSensorBridge {
     this.liveGForce = 1.0;
     this.liveVsFpm = 0.0;
     this.pressureHpa = 1013.25;
+    // Recent altitude samples for the climb-rate fit, and recent fixes for speed when the
+    // phone's GPS reports position but no speed.
+    this.altSamples = [];
+    this.posSamples = [];
+    this.nativeBaroListener = null;
 
     // Stationary deadband & rate filtering
-    this.lastAlt = null;
-    this.lastAltTime = 0;
     this.lastGpsSpeed = 0;
     this.lastSpeedTime = 0;
     this.speedTrendKt = 0;
@@ -3198,7 +3201,9 @@ class DeviceSensorBridge {
 
           // Ground Speed & Strict Stationary Zero-Clamping (< 1.8 kt -> 0.0 kt)
           const rawSpeedMps = pos.coords.speed;
-          const rawSpeedKt = (rawSpeedMps !== null && !isNaN(rawSpeedMps) && rawSpeedMps >= 0) ? (rawSpeedMps * 1.94384) : 0.0;
+          const fixNow = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+          const reportedSpeed = rawSpeedMps !== null && !isNaN(rawSpeedMps) && rawSpeedMps >= 0;
+          const rawSpeedKt = reportedSpeed ? (rawSpeedMps * 1.94384) : this.speedFromPositionsKt(pos.coords, fixNow);
           const SPEED_DEADBAND_KT = 1.8; // Eliminates stationary wandering jitter
           if (rawSpeedKt < SPEED_DEADBAND_KT) {
             this.liveSpeedKt = 0.0;
@@ -3234,21 +3239,9 @@ class DeviceSensorBridge {
               this.liveAltFt = gpsAltFt;
               sim.altitudeFt = gpsAltFt;
             }
-            const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-            if (this.lastAlt !== null && this.lastAltTime > 0) {
-              const dtMin = (now - this.lastAltTime) / 60000.0;
-              if (dtMin > 0.005) {
-                const rawVsFpm = (this.liveAltFt - this.lastAlt) / dtMin;
-                const VSI_DEADBAND_FPM = 50.0;
-                const filteredVs = (Math.abs(rawVsFpm) < VSI_DEADBAND_FPM) ? 0.0 : rawVsFpm;
-                this.liveVsFpm += (filteredVs - this.liveVsFpm) * 0.25;
-                // The smoothed value decays toward zero without reaching it; clamp the output too
-                if (Math.abs(this.liveVsFpm) < VSI_DEADBAND_FPM) this.liveVsFpm = 0.0;
-                sim.verticalSpeedFpm = this.liveVsFpm;
-              }
-            }
-            this.lastAlt = this.liveAltFt;
-            this.lastAltTime = now;
+            // GPS altitude is noisy fix to fix, so climb rate is a fit over the last 8 s.
+            // A barometer (when present) supplies its own, smoother samples instead.
+            if (!this.hasBaroFix) this.recordAltitudeSample(gpsAltFt, fixNow, 8000);
           }
 
           this.updateUiStatus();
@@ -3273,14 +3266,7 @@ class DeviceSensorBridge {
       try {
         this.barometerSensor = new window.Barometer({ frequency: 10 });
         this.barometerSensor.addEventListener('reading', () => {
-          if (this.barometerSensor.pressure) {
-            this.hasBaroFix = true;
-            this.pressureHpa = this.barometerSensor.pressure;
-            const qnh = sim.qnhHpa || 1013.25;
-            const baroAltFt = 145366.45 * (1.0 - Math.pow(this.pressureHpa / qnh, 0.190284));
-            this.liveAltFt = baroAltFt;
-            sim.altitudeFt = baroAltFt;
-          }
+          if (this.barometerSensor.pressure) this.applyPressureReading(this.barometerSensor.pressure);
         });
         this.barometerSensor.start();
       } catch(e) {
@@ -3288,7 +3274,77 @@ class DeviceSensorBridge {
       }
     }
 
+    // 5. Android app: the phone's pressure sensor through the native EfisBarometer plugin
+    this.startNativeBarometer();
+
     this.updateUiStatus();
+  }
+
+  startNativeBarometer() {
+    if (!isNativeApp() || this.nativeBaroListener) return;
+    const cap = window.Capacitor;
+    const plugin = (cap.Plugins && cap.Plugins.EfisBarometer) ||
+      (typeof cap.registerPlugin === "function" ? cap.registerPlugin("EfisBarometer") : null);
+    if (!plugin || typeof plugin.addListener !== "function") return; // older APK without the plugin
+    this.nativeBaroListener = "pending";
+    Promise.resolve(plugin.addListener("pressure", (e) => {
+      if (e && isFinite(e.hPa) && e.hPa > 100) this.applyPressureReading(Number(e.hPa));
+    })).then((handle) => {
+      this.nativeBaroListener = handle;
+      return plugin.start();
+    }).catch(() => {
+      // No pressure sensor on this phone (or plugin missing): stay on GPS altitude
+      this.nativeBaroListener = null;
+    });
+  }
+
+  // Pressure altitude against the set QNH, like a real altimeter; climb rate from a 3 s fit.
+  applyPressureReading(hPa) {
+    this.hasBaroFix = true;
+    this.pressureHpa = hPa;
+    const qnh = sim.qnhHpa || 1013.25;
+    const baroAltFt = 145366.45 * (1.0 - Math.pow(hPa / qnh, 0.190284));
+    this.liveAltFt = baroAltFt;
+    sim.altitudeFt = baroAltFt;
+    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    const last = this.altSamples[this.altSamples.length - 1];
+    if (!last || now - last.t >= 100) this.recordAltitudeSample(baroAltFt, now, 3000);
+  }
+
+  // Climb rate = least-squares slope of the altitude samples in the window, with the
+  // CLAUDE.md stationary clamp (|VS| < 50 fpm -> 0).
+  recordAltitudeSample(altFt, now, windowMs) {
+    const samples = this.altSamples;
+    samples.push({ t: now, alt: altFt });
+    while (samples.length && now - samples[0].t > windowMs) samples.shift();
+    if (samples.length < 3 || now - samples[0].t < Math.min(1500, windowMs / 2)) return;
+    let st = 0, sa = 0;
+    for (const p of samples) { st += p.t; sa += p.alt; }
+    const mt = st / samples.length, ma = sa / samples.length;
+    let num = 0, den = 0;
+    for (const p of samples) { num += (p.t - mt) * (p.alt - ma); den += (p.t - mt) * (p.t - mt); }
+    if (den <= 0) return;
+    const rawVsFpm = (num / den) * 60000.0; // ft per ms -> ft per min
+    const VSI_DEADBAND_FPM = 50.0;
+    this.liveVsFpm += (rawVsFpm - this.liveVsFpm) * 0.5;
+    if (Math.abs(this.liveVsFpm) < VSI_DEADBAND_FPM) this.liveVsFpm = 0.0;
+    sim.verticalSpeedFpm = this.liveVsFpm;
+  }
+
+  // Some phones report position without speed. Measure it over the last ~5 s of fixes and
+  // ignore movement smaller than the fix accuracy, so a parked phone's GPS wander reads 0.
+  speedFromPositionsKt(coords, now) {
+    const samples = this.posSamples;
+    samples.push({ t: now, lat: coords.latitude, lon: coords.longitude });
+    while (samples.length && now - samples[0].t > 5000) samples.shift();
+    if (samples.length < 2) return 0.0;
+    const first = samples[0];
+    const dtSec = (now - first.t) / 1000.0;
+    if (dtSec < 1.0) return this.liveSpeedKt;
+    const distNm = calculateDistanceNm(first.lat, first.lon, coords.latitude, coords.longitude);
+    const accuracyNm = Math.max(5, coords.accuracy || 10) / 1852.0;
+    if (distNm < accuracyNm) return 0.0;
+    return distNm / (dtSec / 3600.0);
   }
 
   requestMotionSensors() {
@@ -3413,6 +3469,15 @@ class DeviceSensorBridge {
       try { this.barometerSensor.stop(); } catch(e) {}
       this.barometerSensor = null;
     }
+    if (this.nativeBaroListener && this.nativeBaroListener !== "pending") {
+      try {
+        this.nativeBaroListener.remove();
+        window.Capacitor.Plugins.EfisBarometer.stop();
+      } catch (e) {}
+    }
+    this.nativeBaroListener = null;
+    this.altSamples = [];
+    this.posSamples = [];
     this.hasGpsFix = false;
     this.hasAhrsFix = false;
     this.hasBaroFix = false;
