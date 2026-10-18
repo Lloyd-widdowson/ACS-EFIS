@@ -54,7 +54,7 @@
       <p>Do not use it as a primary or secondary flight instrument, or rely on it for navigation, terrain clearance, traffic avoidance, airspace avoidance or any in-flight decision. Sensor, GPS, map and traffic data may be inaccurate, delayed or fail without warning.</p>
       <p>By continuing you accept that you use this app entirely at your own risk.</p>
       <button id="btn-accept-disclaimer" class="startup-disclaimer-btn" type="button" onclick="document.getElementById('startup-disclaimer').style.display='none';" style="width:100%; margin-top:8px; padding:14px; border:none; border-radius:8px; background:#ff1744; color:#fff; font-size:16px; font-weight:700; cursor:pointer;">I UNDERSTAND &amp; ACCEPT</button>
-      <div class="startup-disclaimer-version" style="margin-top:10px; text-align:center; font-size:11px; color:#64748b;">v3.5.0</div>
+      <div class="startup-disclaimer-version" style="margin-top:10px; text-align:center; font-size:11px; color:#64748b;">v3.5.1</div>
     </div>
   </div>
 
@@ -225,7 +225,7 @@
               <button class="layer-btn active" data-layer="dark"><span class="btn-label-long">Aeronautical Dark</span><span class="btn-label-short">Dark</span></button>
               <button class="layer-btn" data-layer="satellite"><span class="btn-label-long">Satellite Hybrid</span><span class="btn-label-short">Satellite</span></button>
               <button class="layer-btn" data-layer="topo"><span class="btn-label-long">Terrain / Topo</span><span class="btn-label-short">Topo</span></button>
-              <button class="layer-btn" data-layer="vfr"><span class="btn-label-long">VFR OpenAIP</span><span class="btn-label-short">VFR</span></button>
+              <button class="layer-btn" data-layer="vfr" title="Aeronautical chart overlay from OpenAIP (free API key in Settings)"><span class="btn-label-long">Aero Chart (OpenAIP)</span><span class="btn-label-short">Aero</span></button>
             </div>
 
             <!-- Enhanced Map HUD Controls with Collapsible 3-Line Menu Button -->
@@ -680,6 +680,14 @@
 
             <div class="unit-toggle-row">
               <div>
+                <strong>OpenAIP API Key:</strong>
+                <div style="font-size:9px; color:#9ca3af;">Free key from openaip.net (profile, API keys). Shows airspace, airports and navaids on the Aero map.</div>
+              </div>
+              <input type="text" id="cfg-openaip-key" placeholder="paste key" style="width:170px;" title="OpenAIP API Key" autocomplete="off" spellcheck="false">
+            </div>
+
+            <div class="unit-toggle-row">
+              <div>
                 <strong>Data Source Ingestion:</strong>
                 <div style="font-size:9px; color:#9ca3af;">GDL90 UDP (Port 4000) / Web Cellular / Simulator</div>
               </div>
@@ -938,7 +946,7 @@
               <img src="icon-192.png" alt="ACS EFIS & FMS" style="width:64px; height:64px; border-radius:12px; border:2px solid #00e5ff; background:#fff; object-fit:contain; padding:2px; flex-shrink:0;">
               <div>
                 <h3 style="margin:0 0 4px 0; color:#fff; font-size:16px;">ACS EFIS &amp; FMS</h3>
-                <div style="font-size:11px; color:#00e5ff; font-weight:600;">Next-Gen Glass Cockpit Suite v3.5.0</div>
+                <div style="font-size:11px; color:#00e5ff; font-weight:600;">Next-Gen Glass Cockpit Suite v3.5.1</div>
                 <div style="font-size:10px; color:#9ca3af; margin-top:2px;">Australian VNC/VTC AIRAC • ADS-B In • AHRS Sensor Fusion</div>
               </div>
             </div>
