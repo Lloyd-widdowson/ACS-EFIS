@@ -54,7 +54,7 @@
       <p>Do not use it as a primary or secondary flight instrument, or rely on it for navigation, terrain clearance, traffic avoidance, airspace avoidance or any in-flight decision. Sensor, GPS, map and traffic data may be inaccurate, delayed or fail without warning.</p>
       <p>By continuing you accept that you use this app entirely at your own risk.</p>
       <button id="btn-accept-disclaimer" class="startup-disclaimer-btn" type="button" onclick="document.getElementById('startup-disclaimer').style.display='none';" style="width:100%; margin-top:8px; padding:14px; border:none; border-radius:8px; background:#ff1744; color:#fff; font-size:16px; font-weight:700; cursor:pointer;">I UNDERSTAND &amp; ACCEPT</button>
-      <div class="startup-disclaimer-version" style="margin-top:10px; text-align:center; font-size:11px; color:#64748b;">v3.4.2</div>
+      <div class="startup-disclaimer-version" style="margin-top:10px; text-align:center; font-size:11px; color:#64748b;">v3.5.0</div>
     </div>
   </div>
 
@@ -456,6 +456,27 @@
               </div>
             </div>
 
+            <!-- Route Planner: build the route from airports, VFR points, your position or map taps -->
+            <div id="route-planner-drawer" class="route-planner-drawer hidden">
+              <div class="rp-header">
+                <span>🧭 ROUTE PLANNER</span>
+                <button id="btn-close-route-planner" class="btn-close" title="Close">✕</button>
+              </div>
+              <div class="rp-help">Points are flown top to bottom; the last one is your destination. Search below, or switch on map taps and tap the map.</div>
+              <div class="rp-search">
+                <input id="rp-search-input" type="search" autocomplete="off" placeholder="Search airport or VFR point (e.g. YPMQ, Crowdy)">
+                <div id="rp-search-results" class="rp-search-results"></div>
+              </div>
+              <div class="rp-actions">
+                <button id="btn-rp-add-position" class="rp-btn">📍 Add my position</button>
+                <button id="btn-rp-map-taps" class="rp-btn">👆 Map taps: OFF</button>
+                <button id="btn-rp-reverse" class="rp-btn">⇅ Reverse</button>
+                <button id="btn-rp-clear" class="rp-btn rp-btn-danger">🗑️ Clear</button>
+              </div>
+              <ol id="rp-list" class="rp-list"></ol>
+              <div id="rp-totals" class="rp-totals"></div>
+            </div>
+
             <div id="emergency-nrst-drawer" class="emergency-drawer hidden">
               <div class="drawer-header">
                 <span class="emergency-title">🚨 NEAREST AIRPORTS (DIRECT-TO DIVERT)</span>
@@ -479,9 +500,9 @@
                 <button id="btn-show-traffic-dir" class="btn-cyan"><span class="btn-icon">✈</span> <span class="btn-label-long">ADS-B Traffic</span><span class="btn-label-short">ADS-B</span></button>
                 <button id="btn-show-freq-dir" class="btn-cyan"><span class="btn-icon">📻</span> <span class="btn-label-long">VHF Directory</span><span class="btn-label-short">VHF</span></button>
                 <button id="btn-lock-route" class="btn-lock-route unlocked" title="Toggle Route Edit Protection (Prevents accidental map taps from adding fixes)"><span class="btn-label-long">🔓 Route Unlocked (Tap to Fix)</span><span class="btn-label-short">🔓 Unlocked</span></button>
-                <button id="btn-add-waypoint" class="btn-cyan"><span class="btn-icon">➕</span> <span class="btn-label-long">Click Map to Add Fix</span><span class="btn-label-short">Add Fix</span></button>
+                <button id="btn-add-waypoint" class="btn-cyan" title="Open the route planner"><span class="btn-icon">🧭</span> <span class="btn-label-long">Plan Route</span><span class="btn-label-short">Plan</span></button>
                 <button id="btn-show-nrst-list" class="btn-yellow"><span class="btn-icon">📍</span> <span class="btn-label-long">Nearest Airports</span><span class="btn-label-short">Nearest</span></button>
-                <button id="btn-clear-route" class="btn-magenta"><span class="btn-icon">🗑️</span> <span class="btn-label-long">Reset Route</span><span class="btn-label-short">Reset</span></button>
+                <button id="btn-clear-route" class="btn-magenta" title="Remove every point from the route"><span class="btn-icon">🗑️</span> <span class="btn-label-long">Clear Route</span><span class="btn-label-short">Clear</span></button>
               </div>
             </div>
           </div>
@@ -917,7 +938,7 @@
               <img src="icon-192.png" alt="ACS EFIS & FMS" style="width:64px; height:64px; border-radius:12px; border:2px solid #00e5ff; background:#fff; object-fit:contain; padding:2px; flex-shrink:0;">
               <div>
                 <h3 style="margin:0 0 4px 0; color:#fff; font-size:16px;">ACS EFIS &amp; FMS</h3>
-                <div style="font-size:11px; color:#00e5ff; font-weight:600;">Next-Gen Glass Cockpit Suite v3.4.2</div>
+                <div style="font-size:11px; color:#00e5ff; font-weight:600;">Next-Gen Glass Cockpit Suite v3.5.0</div>
                 <div style="font-size:10px; color:#9ca3af; margin-top:2px;">Australian VNC/VTC AIRAC • ADS-B In • AHRS Sensor Fusion</div>
               </div>
             </div>

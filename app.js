@@ -2663,6 +2663,15 @@ class FlightSimEngine {
       { id: "CAMDEN-HVN", name: "Camden Haven Overfly", lat: -31.6367, lon: 152.8250 },
       { id: "YPMQ", name: "Port Macquarie Airport", lat: -31.4358, lon: 152.8631 }
     ];
+    // The route the pilot built last time (saved by updateRouteOnMap); an empty list means "no route".
+    try {
+      const savedRoute = JSON.parse(localStorage.getItem("efis_route_v1") || "null");
+      if (Array.isArray(savedRoute) && savedRoute.every(w => w && typeof w.id === "string" && isFinite(w.lat) && isFinite(w.lon))) {
+        this.routeWaypoints = savedRoute.map(w => ({ id: w.id, name: String(w.name || w.id), lat: Number(w.lat), lon: Number(w.lon) }));
+        const last = this.routeWaypoints[this.routeWaypoints.length - 1];
+        if (last) { this.destIdent = last.id; this.destLat = last.lat; this.destLon = last.lon; }
+      }
+    } catch (e) {}
   }
 
   update(dt) {
@@ -5711,7 +5720,8 @@ function initLeafletFlightMap() {
       }
       const lat = e.latlng.lat, lon = e.latlng.lng;
       const newId = `FIX-${sim.routeWaypoints.length + 1}`;
-      sim.routeWaypoints.push({ id: newId, name: `Custom Fix`, lat, lon });
+      sim.routeWaypoints.push({ id: newId, name: `Map point ${lat.toFixed(3)}, ${lon.toFixed(3)}`, lat, lon });
+      sim.isEmergencyDivert = false;
       updateRouteOnMap();
     });
   } catch(e) {
@@ -6247,7 +6257,8 @@ function renderVfrWaypointsOnMap() {
       <div style="font-family:monospace; font-size:12px; color:#fff; padding:4px;">
         <strong style="color:#00e5ff; font-size:13px;">📍 ${wpt.name} [ ${wpt.id} ]</strong><br>
         <span style="color:#9ca3af; font-size:11px;">${wpt.desc}</span><br>
-        <span style="color:#ffd54f; font-size:10px;">Coords: ${wpt.lat.toFixed(4)}°, ${wpt.lon.toFixed(4)}° (${wpt.region} VTC)</span>
+        <span style="color:#ffd54f; font-size:10px;">Coords: ${wpt.lat.toFixed(4)}°, ${wpt.lon.toFixed(4)}° (${wpt.region} VTC)</span><br>
+        <button onclick="window.addToRouteById('${wpt.id}')" style="margin-top:6px; width:100%; background:#0e7490; color:#fff; border:none; padding:4px; font-weight:bold; cursor:pointer; border-radius:3px;">➕ ADD TO ROUTE</button>
       </div>
     `, { className: 'airspace-leaflet-popup', maxWidth: 260 });
 
@@ -6355,6 +6366,9 @@ function renderAirportsOnMap() {
         Surface: <strong>${apt.surface}</strong><br>
         <button onclick="window.divertToAirport('${apt.icao}')" style="margin-top:6px; width:100%; background:#ff1744; color:#fff; border:none; padding:4px; font-weight:bold; cursor:pointer; border-radius:3px;">
           🚨 DIRECT-TO (${apt.icao})
+        </button>
+        <button onclick="window.addToRouteById('${apt.icao}')" style="margin-top:4px; width:100%; background:#0e7490; color:#fff; border:none; padding:4px; font-weight:bold; cursor:pointer; border-radius:3px;">
+          ➕ ADD TO ROUTE
         </button>
       </div>
     `;
@@ -6541,10 +6555,225 @@ function updateRouteOnMap() {
       mapRouteLine.setStyle({ color: '#e040fb', weight: 4, dashArray: '8, 8' });
     }
   }
+  // The last point is the destination the PFD/HSI navigate to; with no route, fall back to home.
+  const last = sim.routeWaypoints[sim.routeWaypoints.length - 1];
+  if (!sim.isEmergencyDivert) {
+    const dest = last || { id: userHomeAirport.icao, lat: userHomeAirport.lat, lon: userHomeAirport.lon };
+    sim.destIdent = dest.id;
+    sim.destLat = dest.lat;
+    sim.destLon = dest.lon;
+  }
+  try { localStorage.setItem("efis_route_v1", JSON.stringify(sim.routeWaypoints)); } catch (e) {}
+
   const nameElem = document.getElementById("map-route-name");
   if (nameElem) {
-    nameElem.textContent = sim.routeWaypoints.map(w => w.id).join(" → ");
+    nameElem.textContent = sim.routeWaypoints.length
+      ? sim.routeWaypoints.map(w => w.id).join(" → ")
+      : "No route. Tap Plan to build one.";
   }
+  const metricsElem = document.getElementById("map-route-metrics");
+  if (metricsElem) {
+    const t = getRouteTotals();
+    metricsElem.textContent = sim.routeWaypoints.length > 1
+      ? `Total: ${t.distNm.toFixed(1)} NM | ETE: ${formatRouteEte(t.distNm / t.speedKt)} @ ${t.speedKt} KT`
+      : "";
+  }
+  renderRoutePlanner();
+}
+
+// ============================================================================
+// 6.1b ROUTE PLANNER (search airports / VFR points, my position, map taps, reorder)
+// ============================================================================
+function getRoutePlanningSpeedKt() {
+  // Use real ground speed once moving, otherwise the speed bug as a planning cruise speed.
+  const gs = (typeof deviceSensors !== 'undefined' && deviceSensors.useLiveSensors) ? deviceSensors.liveSpeedKt : sim.airspeedKt;
+  return Math.round(gs > 40 ? gs : (sim.selectedSpeedBug || 110));
+}
+
+function getRouteTotals() {
+  let distNm = 0;
+  for (let i = 1; i < sim.routeWaypoints.length; i++) {
+    const a = sim.routeWaypoints[i - 1], b = sim.routeWaypoints[i];
+    distNm += calculateDistanceNm(a.lat, a.lon, b.lat, b.lon);
+  }
+  return { distNm, speedKt: getRoutePlanningSpeedKt() };
+}
+
+function formatRouteEte(hours) {
+  const totalSec = Math.max(0, Math.round(hours * 3600));
+  const h = Math.floor(totalSec / 3600), m = Math.floor((totalSec % 3600) / 60), sec = totalSec % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+}
+
+function addRoutePoint(pt) {
+  sim.isEmergencyDivert = false;
+  sim.routeWaypoints.push({ id: pt.id, name: pt.name || pt.id, lat: pt.lat, lon: pt.lon });
+  updateRouteOnMap();
+}
+
+function removeRoutePoint(index) {
+  sim.routeWaypoints.splice(index, 1);
+  sim.isEmergencyDivert = false;
+  updateRouteOnMap();
+}
+
+function moveRoutePoint(index, delta) {
+  const j = index + delta;
+  if (j < 0 || j >= sim.routeWaypoints.length) return;
+  const w = sim.routeWaypoints;
+  [w[index], w[j]] = [w[j], w[index]];
+  sim.isEmergencyDivert = false;
+  updateRouteOnMap();
+}
+
+function clearRoute() {
+  sim.isEmergencyDivert = false;
+  sim.routeWaypoints = [];
+  updateRouteOnMap();
+}
+
+function searchRoutePoints(query) {
+  const q = query.trim().toUpperCase();
+  if (q.length < 2) return [];
+  const hits = [];
+  AUSTRALIAN_AIRPORTS.forEach(a => {
+    const name = a.name.toUpperCase();
+    const score = a.icao === q ? 0 : a.icao.startsWith(q) ? 1 : name.startsWith(q) ? 2 : name.includes(q) ? 3 : -1;
+    if (score >= 0) hits.push({ score, kind: "Airport", id: a.icao, name: a.name, lat: a.lat, lon: a.lon });
+  });
+  AUSTRALIAN_VFR_WAYPOINTS.forEach(v => {
+    const name = v.name.toUpperCase();
+    const score = v.id === q ? 0 : v.id.startsWith(q) ? 1 : name.startsWith(q) ? 2 : name.includes(q) ? 3 : -1;
+    if (score >= 0) hits.push({ score, kind: "VFR point", id: v.id, name: v.name, lat: v.lat, lon: v.lon });
+  });
+  hits.forEach(h => { h.distNm = calculateDistanceNm(sim.lat, sim.lon, h.lat, h.lon); });
+  hits.sort((a, b) => a.score - b.score || a.distNm - b.distNm);
+  return hits.slice(0, 8);
+}
+
+// Popup buttons on airport and VFR markers call this.
+window.addToRouteById = function(id) {
+  const apt = AUSTRALIAN_AIRPORTS.find(a => a.icao === id);
+  const vfr = apt ? null : AUSTRALIAN_VFR_WAYPOINTS.find(v => v.id === id);
+  const src = apt ? { id: apt.icao, name: apt.name, lat: apt.lat, lon: apt.lon } : vfr;
+  if (!src) return;
+  addRoutePoint(src);
+  if (leafletMap) leafletMap.closePopup();
+};
+
+function makeRpButton(label, title, onClick, extraClass = "") {
+  const b = document.createElement("button");
+  b.className = "rp-mini-btn " + extraClass;
+  b.textContent = label;
+  b.title = title;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function renderRoutePlanner() {
+  const drawer = document.getElementById("route-planner-drawer");
+  const list = document.getElementById("rp-list");
+  if (!drawer || !list || drawer.classList.contains("hidden")) return;
+  list.innerHTML = "";
+  const w = sim.routeWaypoints;
+  if (!w.length) {
+    const li = document.createElement("li");
+    li.className = "rp-empty";
+    li.textContent = "No points yet. Add your position first, then where you want to go.";
+    list.appendChild(li);
+  }
+  w.forEach((pt, i) => {
+    const li = document.createElement("li");
+    li.className = "rp-item" + (i === w.length - 1 ? " rp-dest" : "");
+    const info = document.createElement("div");
+    info.className = "rp-item-info";
+    const title = document.createElement("strong");
+    title.textContent = `${i + 1}. ${pt.id}`;
+    const sub = document.createElement("span");
+    let leg = i === 0 ? "Start" : "";
+    if (i > 0) {
+      const p = w[i - 1];
+      const brg = Math.round(calculateBearingDeg(p.lat, p.lon, pt.lat, pt.lon)) % 360;
+      leg = `${calculateDistanceNm(p.lat, p.lon, pt.lat, pt.lon).toFixed(1)} NM, ${String(brg).padStart(3, "0")}°`;
+    }
+    sub.textContent = `${pt.name}${i === w.length - 1 && i > 0 ? " (destination)" : ""}`;
+    const legLine = document.createElement("span");
+    legLine.className = "rp-leg";
+    legLine.textContent = leg;
+    info.append(title, sub, legLine);
+    const ctrls = document.createElement("div");
+    ctrls.className = "rp-item-ctrls";
+    ctrls.append(
+      makeRpButton("▲", "Move earlier", () => moveRoutePoint(i, -1)),
+      makeRpButton("▼", "Move later", () => moveRoutePoint(i, 1)),
+      makeRpButton("✕", "Remove", () => removeRoutePoint(i), "rp-mini-danger")
+    );
+    li.append(info, ctrls);
+    list.appendChild(li);
+  });
+  const totals = document.getElementById("rp-totals");
+  if (totals) {
+    const t = getRouteTotals();
+    totals.textContent = w.length > 1
+      ? `${w.length} points · ${t.distNm.toFixed(1)} NM · ETE ${formatRouteEte(t.distNm / t.speedKt)} at ${t.speedKt} KT`
+      : "";
+  }
+}
+
+function renderRouteSearchResults() {
+  const input = document.getElementById("rp-search-input");
+  const box = document.getElementById("rp-search-results");
+  if (!input || !box) return;
+  box.innerHTML = "";
+  const hits = searchRoutePoints(input.value);
+  if (input.value.trim().length >= 2 && !hits.length) {
+    const none = document.createElement("div");
+    none.className = "rp-result rp-result-none";
+    none.textContent = "Nothing found. Try the ICAO code or part of the name.";
+    box.appendChild(none);
+  }
+  hits.forEach(h => {
+    const row = document.createElement("button");
+    row.className = "rp-result";
+    row.textContent = `➕ ${h.id} · ${h.name} (${h.kind}, ${h.distNm.toFixed(0)} NM)`;
+    row.addEventListener("click", () => {
+      addRoutePoint(h);
+      input.value = "";
+      box.innerHTML = "";
+    });
+    box.appendChild(row);
+  });
+}
+
+function openRoutePlanner() {
+  document.getElementById("emergency-nrst-drawer")?.classList.add("hidden");
+  document.getElementById("route-planner-drawer")?.classList.remove("hidden");
+  const hud = document.getElementById("map-hud-controls");
+  if (hud && !hud.classList.contains("minimized")) document.getElementById("btn-toggle-map-hud")?.click();
+  renderRoutePlanner();
+  updateRouteLockUI();
+}
+
+function initRoutePlanner() {
+  document.getElementById("btn-close-route-planner")?.addEventListener("click", () => {
+    document.getElementById("route-planner-drawer")?.classList.add("hidden");
+  });
+  document.getElementById("rp-search-input")?.addEventListener("input", renderRouteSearchResults);
+  document.getElementById("btn-rp-add-position")?.addEventListener("click", () => {
+    const live = typeof deviceSensors !== 'undefined' && deviceSensors.useLiveSensors && deviceSensors.hasGpsFix;
+    const lat = live ? deviceSensors.liveLat : sim.lat, lon = live ? deviceSensors.liveLon : sim.lon;
+    addRoutePoint({ id: "MY-POS", name: `My position ${lat.toFixed(3)}, ${lon.toFixed(3)}`, lat, lon });
+  });
+  // "Map taps" is the route lock seen from the planner: ON = unlocked, taps add points.
+  document.getElementById("btn-rp-map-taps")?.addEventListener("click", () => toggleRouteLock());
+  document.getElementById("btn-rp-reverse")?.addEventListener("click", () => {
+    sim.routeWaypoints.reverse();
+    sim.isEmergencyDivert = false;
+    updateRouteOnMap();
+  });
+  document.getElementById("btn-rp-clear")?.addEventListener("click", () => {
+    if (!sim.routeWaypoints.length || confirm("Clear every point from the route?")) clearRoute();
+  });
 }
 
 // ============================================================================
@@ -6572,7 +6801,6 @@ function updateRouteLockUI() {
   const btnLock = document.getElementById("btn-lock-route");
   const badgeLock = document.getElementById("map-route-lock-badge");
   const hudBtnLock = document.getElementById("btn-map-lock-route");
-  const btnAddWpt = document.getElementById("btn-add-waypoint");
 
   if (btnLock) {
     btnLock.classList.toggle("locked", isRouteLocked);
@@ -6601,11 +6829,10 @@ function updateRouteLockUI() {
     hudBtnLock.textContent = isRouteLocked ? "🔒 Route: Locked" : "🔓 Route: Unlocked";
   }
 
-  if (btnAddWpt) {
-    btnAddWpt.style.opacity = isRouteLocked ? "0.6" : "1.0";
-    btnAddWpt.title = isRouteLocked 
-      ? "Route is currently locked. Click to unlock and add custom fix." 
-      : "Click map to insert a custom waypoint fix";
+  const rpMapTaps = document.getElementById("btn-rp-map-taps");
+  if (rpMapTaps) {
+    rpMapTaps.textContent = isRouteLocked ? "👆 Map taps: OFF" : "👆 Map taps: ON";
+    rpMapTaps.classList.toggle("rp-btn-on", !isRouteLocked);
   }
 }
 
@@ -7711,31 +7938,19 @@ document.getElementById("btn-map-recenter")?.addEventListener("click", () => {
 });
 
 document.getElementById("btn-clear-route")?.addEventListener("click", () => {
-  sim.isEmergencyDivert = false;
-  sim.destIdent = "YPMQ";
-  sim.destLat = -31.4358;
-  sim.destLon = 152.8631;
-  sim.routeWaypoints = [
-    { id: userHomeAirport.icao, name: userHomeAirport.name, lat: userHomeAirport.lat, lon: userHomeAirport.lon },
-    { id: "CROWDY", name: "Crowdy Head Fix", lat: -31.8417, lon: 152.7533 },
-    { id: "CAMDEN-HVN", name: "Camden Haven Overfly", lat: -31.6367, lon: 152.8250 },
-    { id: "YPMQ", name: "Port Macquarie Airport", lat: -31.4358, lon: 152.8631 }
-  ];
-  updateRouteOnMap();
+  if (!sim.routeWaypoints.length || confirm("Clear every point from the route?")) clearRoute();
 });
 
 // Wire Route Lock Listeners
 document.getElementById("btn-lock-route")?.addEventListener("click", () => toggleRouteLock());
 document.getElementById("map-route-lock-badge")?.addEventListener("click", () => toggleRouteLock());
 document.getElementById("btn-map-lock-route")?.addEventListener("click", () => toggleRouteLock());
-document.getElementById("btn-add-waypoint")?.addEventListener("click", () => {
-  if (isRouteLocked) {
-    toggleRouteLock(false);
-  }
-});
+document.getElementById("btn-add-waypoint")?.addEventListener("click", () => openRoutePlanner());
+initRoutePlanner();
 
 // Initialize Route Lock UI
 updateRouteLockUI();
+updateRouteOnMap();
 
 // ============================================================================
 // ORIENTATION MODES & 2-SECOND HOLD PRESS GESTURE ENGINE
