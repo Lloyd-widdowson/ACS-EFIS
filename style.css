@@ -410,6 +410,11 @@ html, body {
   transition: transform 0.15s ease;
 }
 
+.airspace-tag-anchor {
+  display: inline-block;
+  transform: translate(-50%, -50%);
+}
+
 .airspace-badge-tag.vtc-step {
   font-size: 8.5px;
   padding: 1px 5px;
@@ -4009,6 +4014,54 @@ body.landscape-map-mode .weather-hud-bar {
   }
 
   .map-layer-selector .hud-title {
+    display: none;
+  }
+
+  /* Map screen: radar widget sits under the layer buttons, clear of the route bar */
+  body:not(.landscape-mode):not(.landscape-map-mode) .weather-hud-bar {
+    top: 36px !important;
+    bottom: auto !important;
+  }
+
+  /* Route bar: one line of route info, one row of short buttons */
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .route-info-text > div {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap !important;
+  }
+
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .route-title {
+    max-width: none !important;
+    min-width: 0;
+  }
+
+  /* The lock button in the row below already shows and toggles this */
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .route-lock-badge {
+    display: none !important;
+  }
+
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .route-actions {
+    flex-wrap: nowrap !important;
+  }
+
+  body:not(.landscape-mode):not(.landscape-map-mode) .map-route-bar .route-actions button {
+    flex: 1 1 0 !important;
+    min-width: 0;
+    padding: 5px 2px !important;
+    font-size: 9px !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .map-route-bar .btn-label-long {
+    display: none !important;
+  }
+
+  .map-route-bar .btn-label-short {
+    display: inline !important;
+  }
+
+  .map-route-bar .btn-icon {
     display: none;
   }
 }
