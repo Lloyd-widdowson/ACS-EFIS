@@ -1,0 +1,12 @@
+{
+  "appId": "au.com.altitudecs.efis",
+  "appName": "ACS EFIS",
+  "webDir": "www",
+  "server": {
+    "url": "https://lloyd-widdowson.github.io/ACS-EFIS/",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
