@@ -2181,7 +2181,8 @@ class TrafficManager {
     const list = [];
     const relay = getAdsbRelayUrl();
     if (relay) {
-      list.push({ name: "Relay", url: `${relay}${relay.includes("?") ? "&" : "?"}lat=${lat}&lon=${lon}&dist=${radiusNm}`, type: "adsb_v2" });
+      // The relay asks several networks itself, so give it longer and retry it sooner
+      list.push({ name: "Relay", url: `${relay}${relay.includes("?") ? "&" : "?"}lat=${lat}&lon=${lon}&dist=${radiusNm}`, type: "adsb_v2", timeoutMs: 10000, backoffMs: 20000 });
     }
     if (origin) {
       list.push({ name: "Local Proxy", url: `${origin}/api/adsb?lat=${lat}&lon=${lon}&dist=${radiusNm}`, type: "adsb_v2" });
@@ -2203,6 +2204,7 @@ class TrafficManager {
     this.isFetchingLiveAdsb = true;
     if (!this.sourceBackoffUntil) this.sourceBackoffUntil = {};
     if (!this.sourceLastFetch) this.sourceLastFetch = {};
+    if (!this.sourceStatus) this.sourceStatus = {};
 
     try {
       const now = Date.now();
@@ -2220,10 +2222,14 @@ class TrafficManager {
         this.sourceLastFetch[candidate.name] = now;
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 4000);
+          const timeoutId = setTimeout(() => controller.abort(), candidate.timeoutMs || 4000);
           const resp = await fetch(candidate.url, { signal: controller.signal, cache: "no-store" });
           clearTimeout(timeoutId);
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          if (!resp.ok) {
+            let detail = "";
+            try { const body = await resp.json(); detail = body && body.error ? `: ${body.error}` : ""; } catch (e) { /* not JSON */ }
+            throw new Error(`HTTP ${resp.status}${detail}`);
+          }
           const data = await resp.json();
 
           let planes = null;
@@ -2248,15 +2254,24 @@ class TrafficManager {
           // A source that answers counts as working, even with no aircraft nearby
           livePlanes = planes;
           feedSource = candidate.name;
+          this.sourceStatus[candidate.name] = `OK, ${planes.length} aircraft`;
           break;
         } catch (candidateErr) {
+          this.sourceStatus[candidate.name] =
+            candidateErr && candidateErr.name === "AbortError" ? "timed out"
+            : candidateErr instanceof TypeError ? "blocked or unreachable"
+            : (candidateErr && candidateErr.message) || "failed";
           // Unreachable (often CORS on a static host): leave it alone for a while
-          this.sourceBackoffUntil[candidate.name] = now + 2 * 60 * 1000;
+          this.sourceBackoffUntil[candidate.name] = now + (candidate.backoffMs || 2 * 60 * 1000);
           if (this.workingSourceName === candidate.name) this.workingSourceName = null;
         }
       }
 
       const liveBtn = document.getElementById("btn-map-live-feed");
+      const statusEl = document.getElementById("adsb-source-status");
+      if (statusEl && this === window.trafficMgr) {
+        statusEl.textContent = Object.entries(this.sourceStatus).map(([name, st]) => `${name}: ${st}`).join(" · ");
+      }
 
       if (livePlanes) {
         const activeHexes = new Set();
