@@ -1967,14 +1967,15 @@ class TrafficManager {
     this.lastLiveFetchTime = 0;
     this.liveFetchIntervalMs = 4000;
     this.liveTargetCount = 0;
-    this.feedSourceLabel = "Direct / Sim";
+    this.feedSourceLabel = "Connecting";
+    this.workingSourceName = null;
+    this.lastPurgeTime = 0;
 
     this.lastTcasAlertTime = 0;
     this.highestThreatLevel = "NONE";
     this.highestThreatTarget = null;
-    
-    // Always initialize baseline realistic fleet so radar and traffic are never 0 targets
-    this.initRealAirspaceFleet();
+
+    // No simulated fleet: the map, radar and TCAS only ever show aircraft reported by a live feed.
   }
 
   toggleLiveFeed(forcedState = null) {
@@ -1991,7 +1992,7 @@ class TrafficManager {
     if (this.isLiveWebFeedActive) {
       const label = this.liveTargetCount > 0 
         ? `🌐 Live: ${this.liveTargetCount} AC (${this.feedSourceLabel})` 
-        : `🌐 Live: ${this.targets.size} AC (Sim / Direct)`;
+        : "🌐 Live: connecting…";
       if (liveBtn) {
         liveBtn.classList.add("active");
         liveBtn.textContent = label;
@@ -2006,15 +2007,13 @@ class TrafficManager {
     } else {
       if (liveBtn) {
         liveBtn.classList.remove("active");
-        liveBtn.textContent = `🌐 Web Feed: OFF (${this.targets.size} AC Sim)`;
+        liveBtn.textContent = "🌐 Live Feed: OFF (no traffic)";
       }
       if (cfgLiveBtn) {
         cfgLiveBtn.classList.remove("active");
         cfgLiveBtn.textContent = "DISABLED (OFF)";
       }
-      if (this.targets.size === 0) {
-        this.initRealAirspaceFleet();
-      }
+      this.purgeNonLiveTargets();
     }
     renderTrafficOnMap();
   }
@@ -2147,103 +2146,104 @@ class TrafficManager {
         longitude: lon,
         trackHistory: history,
         isRealData: false,
+        isSimulated: true,
         lastSeenTimestamp: Date.now()
       });
     });
   }
 
+  /**
+   * Real traffic only: polls public ADS-B networks and never substitutes simulated aircraft.
+   * Sources are tried in order; one that fails is skipped for two minutes, and the last
+   * working source is tried first. GitHub Pages cannot proxy, so browser CORS decides which
+   * sources work there; the local server's /api/adsb proxy is tried first when present.
+   */
+  getAdsbSourceCandidates(ownLat, ownLon, radiusNm) {
+    const lat = ownLat.toFixed(4);
+    const lon = ownLon.toFixed(4);
+    const origin = (typeof window !== 'undefined' && window.location && /^https?:/.test(window.location.origin)) ? window.location.origin : null;
+    // OpenSky: keep the box under 25 square degrees (1 credit) and poll it slowly, anonymous access is 400 credits/day
+    const boxDeg = 2.4;
+    const list = [];
+    if (origin) {
+      list.push({ name: "Local Proxy", url: `${origin}/api/adsb?lat=${lat}&lon=${lon}&dist=${radiusNm}`, type: "adsb_v2" });
+    }
+    list.push(
+      { name: "adsb.fi", url: `https://opendata.adsb.fi/api/v3/lat/${lat}/lon/${lon}/dist/${radiusNm}`, type: "adsb_v2" },
+      { name: "airplanes.live", url: `https://api.airplanes.live/v2/point/${lat}/${lon}/${radiusNm}`, type: "adsb_v2" },
+      { name: "adsb.lol", url: `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/${radiusNm}`, type: "adsb_v2" },
+      {
+        name: "OpenSky", type: "opensky", minIntervalMs: 30000,
+        url: `https://opensky-network.org/api/states/all?lamin=${(ownLat - boxDeg).toFixed(3)}&lomin=${(ownLon - boxDeg).toFixed(3)}&lamax=${(ownLat + boxDeg).toFixed(3)}&lomax=${(ownLon + boxDeg).toFixed(3)}`
+      }
+    );
+    return list;
+  }
+
   async fetchLiveAdsbData(ownLat, ownLon, radiusNm = 250) {
     if (this.isFetchingLiveAdsb) return;
     this.isFetchingLiveAdsb = true;
+    if (!this.sourceBackoffUntil) this.sourceBackoffUntil = {};
+    if (!this.sourceLastFetch) this.sourceLastFetch = {};
 
     try {
       const now = Date.now();
-      let livePlanes = [];
-      let feedSource = "adsb.lol";
+      let livePlanes = null;
+      let feedSource = null;
 
-      // Tiered Candidate Endpoints (direct, CORS-proxied, open community feeds)
-      const fetchCandidates = [
-        // 1. Direct adsb.lol API
-        {
-          name: "adsb.lol",
-          url: `https://api.adsb.lol/v2/lat/${ownLat.toFixed(4)}/lon/${ownLon.toFixed(4)}/dist/${radiusNm}`,
-          type: "adsb_v2"
-        },
-        // 2. Direct opendata.adsb.fi API
-        {
-          name: "adsb.fi",
-          url: `https://opendata.adsb.fi/api/v2/lat/${ownLat.toFixed(4)}/lon/${ownLon.toFixed(4)}/dist/${radiusNm}`,
-          type: "adsb_v2"
-        },
-        // 3. CORS Proxy (AllOrigins) for adsb.lol
-        {
-          name: "adsb.lol (CORS)",
-          url: `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://api.adsb.lol/v2/lat/${ownLat.toFixed(4)}/lon/${ownLon.toFixed(4)}/dist/${radiusNm}`)}`,
-          type: "adsb_v2"
-        },
-        // 4. CORS Proxy (CorsProxy.io) for adsb.lol
-        {
-          name: "adsb.lol (Proxy)",
-          url: `https://corsproxy.io/?url=${encodeURIComponent(`https://api.adsb.lol/v2/lat/${ownLat.toFixed(4)}/lon/${ownLon.toFixed(4)}/dist/${radiusNm}`)}`,
-          type: "adsb_v2"
-        },
-        // 5. OpenSky Network Public Bounding Box API
-        {
-          name: "OpenSky",
-          url: `https://opensky-network.org/api/states/all?lamin=${(ownLat - (radiusNm/60.0)*1.2).toFixed(3)}&lomin=${(ownLon - (radiusNm/60.0)*1.2).toFixed(3)}&lamax=${(ownLat + (radiusNm/60.0)*1.2).toFixed(3)}&lomax=${(ownLon + (radiusNm/60.0)*1.2).toFixed(3)}`,
-          type: "opensky"
-        },
-        // 6. Local Server Proxy (if running server.ps1 locally)
-        {
-          name: "Local Gateway",
-          url: `${(typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : 'http://localhost:8080'}/api/adsb?lat=${ownLat.toFixed(4)}&lon=${ownLon.toFixed(4)}&dist=${radiusNm}`,
-          type: "adsb_v2"
-        }
-      ];
+      let candidates = this.getAdsbSourceCandidates(ownLat, ownLon, radiusNm);
+      if (this.workingSourceName) {
+        candidates = candidates.slice().sort((a, b) => (b.name === this.workingSourceName) - (a.name === this.workingSourceName));
+      }
 
-      for (const candidate of fetchCandidates) {
+      for (const candidate of candidates) {
+        if ((this.sourceBackoffUntil[candidate.name] || 0) > now) continue;
+        if (candidate.minIntervalMs && now - (this.sourceLastFetch[candidate.name] || 0) < candidate.minIntervalMs) continue;
+        this.sourceLastFetch[candidate.name] = now;
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3500);
-          const resp = await fetch(candidate.url, { signal: controller.signal });
+          const timeoutId = setTimeout(() => controller.abort(), 4000);
+          const resp = await fetch(candidate.url, { signal: controller.signal, cache: "no-store" });
           clearTimeout(timeoutId);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
 
-          if (resp.ok) {
-            const data = await resp.json();
-            if (candidate.type === "adsb_v2" && data && Array.isArray(data.ac) && data.ac.length > 0) {
-              feedSource = candidate.name;
-              livePlanes = data.ac.filter(ac => ac.lat != null && ac.lon != null && ac.hex);
-              if (livePlanes.length > 0) break;
-            } else if (candidate.type === "opensky" && data && Array.isArray(data.states) && data.states.length > 0) {
-              feedSource = candidate.name;
-              livePlanes = data.states.map(s => ({
-                hex: (s[0] || "").toUpperCase(),
-                flight: (s[1] || s[0] || "").trim(),
-                r: (s[0] || "").startsWith("7C") ? `VH-${(s[0] || "").slice(-3)}` : s[0],
-                t: AIRCRAFT_TYPE_NAMES[(s[1] || "").slice(0, 3)] ? (s[1] || "").slice(0, 3) : "AIRCRAFT",
-                country: s[2] || getCountryFromIcao(s[0]),
-                lat: s[6],
-                lon: s[5],
-                alt_baro: (s[7] != null) ? Math.round(s[7] * 3.28084) : (s[8] ? 0 : 2500),
-                gs: (s[9] != null) ? Math.round(s[9] * 1.94384) : 120,
-                track: (s[10] != null) ? Math.round(s[10]) : 0,
-                baro_rate: (s[11] != null) ? Math.round(s[11] * 196.85) : 0,
-                squawk: s[14] || "1200",
-                rssi: -22.0,
-                messages: 40,
-                seen: 0.5
-              })).filter(p => p.lat != null && p.lon != null && p.hex);
-              if (livePlanes.length > 0) break;
-            }
+          let planes = null;
+          if (candidate.type === "adsb_v2" && data && Array.isArray(data.ac)) {
+            planes = data.ac.filter(ac => ac.lat != null && ac.lon != null && ac.hex);
+          } else if (candidate.type === "opensky" && data && (Array.isArray(data.states) || data.states === null)) {
+            planes = (data.states || []).filter(st => st[5] != null && st[6] != null && st[0] && !st[8]).map(st => ({
+              hex: (st[0] || "").toUpperCase(),
+              flight: (st[1] || st[0] || "").trim(),
+              country: st[2] || getCountryFromIcao(st[0]),
+              lat: st[6],
+              lon: st[5],
+              alt_baro: st[7] != null ? Math.round(st[7] * 3.28084) : 0,
+              gs: st[9] != null ? Math.round(st[9] * 1.94384) : 0,
+              track: st[10] != null ? Math.round(st[10]) : 0,
+              baro_rate: st[11] != null ? Math.round(st[11] * 196.85) : 0,
+              squawk: st[14] || ""
+            }));
           }
+          if (planes === null) throw new Error("unexpected response");
+
+          // A source that answers counts as working, even with no aircraft nearby
+          livePlanes = planes;
+          feedSource = candidate.name;
+          break;
         } catch (candidateErr) {
-          // Fall through to next candidate in pipeline
+          // Unreachable (often CORS on a static host): leave it alone for a while
+          this.sourceBackoffUntil[candidate.name] = now + 2 * 60 * 1000;
+          if (this.workingSourceName === candidate.name) this.workingSourceName = null;
         }
       }
 
-      // 4. Ingest and refresh real airspace targets
-      if (livePlanes.length > 0) {
+      const liveBtn = document.getElementById("btn-map-live-feed");
+
+      if (livePlanes) {
         const activeHexes = new Set();
+        this.workingSourceName = feedSource;
+        this.lastLiveSuccessTime = now;
 
         livePlanes.forEach(ac => {
           if (!ac.lat || !ac.lon || !ac.hex) return;
@@ -2301,45 +2301,40 @@ class TrafficManager {
 
         this.liveTargetCount = activeHexes.size;
         this.feedSourceLabel = feedSource;
-        this.lastLiveFetchTime = now;
+        this.purgeNonLiveTargets(now);
 
-        // Clean up stale non-real targets if real feed is active
-        this.targets.forEach((tgt, icao) => {
-          if (!tgt.isRealData && !icao.includes("THREAT")) {
-            this.targets.delete(icao);
-          }
-        });
-
-        // Update HUD live button with clear count and source
-        const liveBtn = document.getElementById("btn-map-live-feed");
-        if (liveBtn) {
+        if (liveBtn && this.isLiveWebFeedActive) {
           liveBtn.classList.add("active");
           liveBtn.textContent = `🌐 Live: ${this.liveTargetCount} AC (${feedSource})`;
         }
       } else {
-        // Fallback simulation mode: if offline or no network aircraft returned, keep realistic local fleet
-        if (this.targets.size === 0) {
-          this.initRealAirspaceFleet();
-        }
-        this.feedSourceLabel = "Sim Fleet";
-        const liveBtn = document.getElementById("btn-map-live-feed");
-        if (liveBtn && this.isLiveWebFeedActive) {
+        this.purgeNonLiveTargets(now);
+        // A slow-polled source (OpenSky) skipped between polls is still the working feed
+        const recentlyLive = this.lastLiveSuccessTime && now - this.lastLiveSuccessTime < 90000;
+        if (!recentlyLive) this.feedSourceLabel = "No Feed";
+        if (liveBtn && this.isLiveWebFeedActive && !recentlyLive) {
           liveBtn.classList.add("active");
-          liveBtn.textContent = `🌐 Live: ${this.targets.size} AC (Sim Fleet)`;
+          liveBtn.textContent = "🌐 Live: no feed reachable";
         }
       }
     } catch (e) {
-      if (this.targets.size === 0) {
-        this.initRealAirspaceFleet();
-      }
-      const liveBtn = document.getElementById("btn-map-live-feed");
-      if (liveBtn && this.isLiveWebFeedActive) {
-        liveBtn.classList.add("active");
-        liveBtn.textContent = `🌐 Live: ${this.targets.size} AC (Sim Fleet)`;
-      }
+      // Never fall back to simulated traffic
     } finally {
       this.isFetchingLiveAdsb = false;
     }
+  }
+
+  /**
+   * Removes everything that is not current real traffic: the demo fleet, test threats older
+   * than a minute, and real aircraft the feed has not reported for a minute.
+   */
+  purgeNonLiveTargets(now = Date.now()) {
+    this.targets.forEach((tgt, icao) => {
+      const age = now - (tgt.lastSeenTimestamp || 0);
+      if (tgt.isSimulated) this.targets.delete(icao);
+      else if (tgt.isInjectedThreat && age > 60000) this.targets.delete(icao);
+      else if (tgt.isRealData && age > 60000) this.targets.delete(icao);
+    });
   }
 
   injectCollisionThreat() {
@@ -2372,6 +2367,7 @@ class TrafficManager {
       fmsAlt: Math.round(baseAlt + 300),
       fmsHdg: (baseTrack + 180 + 10) % 360,
       trackHistory: [[baseLat + 0.04, baseLon + 0.04], [baseLat + 0.025, baseLon + 0.025]],
+      isInjectedThreat: true,
       lastSeenTimestamp: Date.now()
     };
     this.targets.set(threatTarget.icaoHex, threatTarget);
@@ -2385,6 +2381,10 @@ class TrafficManager {
     if (this.isLiveWebFeedActive && now - this.lastLiveFetchTime > this.liveFetchIntervalMs) {
       this.lastLiveFetchTime = now;
       this.fetchLiveAdsbData(ownLat, ownLon, 250);
+    }
+    if (now - this.lastPurgeTime > 1000) {
+      this.lastPurgeTime = now;
+      this.purgeNonLiveTargets(now);
     }
 
     let maxThreat = "NONE";
@@ -6869,7 +6869,7 @@ function bootEfisSuite() {
 let lastTime = performance.now();
 const MAP_OVERLAY_REFRESH_SEC = 0.5;
 let mapOverlayElapsedSec = MAP_OVERLAY_REFRESH_SEC;
-let lastAdsbTrackCount = -1;
+let lastAdsbTrackCount = null;
 
 function mainLoop(now) {
   const dt = Math.min(0.05, Math.max(0.005, (now - lastTime) / 1000.0));
@@ -6944,9 +6944,13 @@ function mainLoop(now) {
   if (refreshMapOverlays) renderTrafficOnMap();
 
   const adsbStatusText = document.getElementById("adsb-status-text");
-  if (adsbStatusText && lastAdsbTrackCount !== trafficMgr.targets.size) {
-    lastAdsbTrackCount = trafficMgr.targets.size;
-    adsbStatusText.textContent = `ADS-B ${lastAdsbTrackCount}`;
+  if (adsbStatusText) {
+    const noFeed = !trafficMgr.isLiveWebFeedActive || trafficMgr.feedSourceLabel === "No Feed" || trafficMgr.feedSourceLabel === "Connecting";
+    const chipKey = noFeed && trafficMgr.targets.size === 0 ? -1 : trafficMgr.targets.size;
+    if (lastAdsbTrackCount !== chipKey) {
+      lastAdsbTrackCount = chipKey;
+      adsbStatusText.textContent = chipKey < 0 ? "ADS-B --" : `ADS-B ${chipKey}`;
+    }
   }
 
   // Update Cockpit & PFD TCAS Traffic Warnings
