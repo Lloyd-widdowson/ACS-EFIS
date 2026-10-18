@@ -969,6 +969,69 @@ body.fullscreen-map-mode .efis-map-instrument-cluster {
   border: none;
 }
 
+/* 8. HSI + MOVING MAP (HSI compass overlaid on the live moving map) */
+body.fullscreen-hsi-map-mode .pfd-instrument-cluster {
+  display: none !important;
+}
+
+body.fullscreen-hsi-map-mode .efis-map-instrument-cluster {
+  position: absolute;
+  inset: 0;
+  display: block !important;
+  border: none;
+  z-index: 0;
+  background: #050811;
+}
+
+body.fullscreen-hsi-map-mode .hsi-instrument-cluster {
+  position: absolute;
+  inset: 0;
+  display: block !important;
+  border: none;
+  z-index: 1;
+  background: transparent !important;
+}
+
+body.fullscreen-hsi-map-mode .full-hsi-canvas-wrap,
+body.fullscreen-hsi-map-mode #canvas-hsi-master {
+  background: transparent !important;
+}
+
+/* The map is sized, centred and rotated (heading-up) from app.js */
+body.fullscreen-hsi-map-mode .efis-map-instrument-cluster .map-viewport-wrapper {
+  position: absolute;
+  transform-origin: 50% 50%;
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* Keep airport, airspace, waypoint and traffic labels upright on the heading-up map.
+   --hsi-map-upright is set from app.js; each label turns about its own anchor point. */
+body.fullscreen-hsi-map-mode .leaflet-airport-icon > div,
+body.fullscreen-hsi-map-mode .leaflet-airspace-tag > div {
+  rotate: var(--hsi-map-upright, 0deg);
+  transform-origin: 0 0;
+}
+
+body.fullscreen-hsi-map-mode .leaflet-vfr-waypoint-icon > div {
+  rotate: var(--hsi-map-upright, 0deg);
+  transform-origin: 20px 10px;
+}
+
+body.fullscreen-hsi-map-mode .leaflet-traffic-icon > div > div:last-child,
+body.fullscreen-hsi-map-mode .wind-badge-lbl,
+body.fullscreen-hsi-map-mode .metar-dot-text {
+  display: inline-block;
+  rotate: var(--hsi-map-upright, 0deg);
+}
+
+/* Only the map itself shows: its buttons, route bar and own-ship icon are replaced by the HSI */
+body.fullscreen-hsi-map-mode .map-viewport-wrapper > :not(#leaflet-flight-map),
+body.fullscreen-hsi-map-mode .leaflet-plane-icon,
+body.fullscreen-hsi-map-mode #cockpit-footer-nav {
+  display: none !important;
+}
+
 /* 2-Second Hold Press Indicator Overlay */
 .hold-indicator-overlay {
   position: absolute;

@@ -156,6 +156,14 @@ let userHomeAirport = AUSTRALIAN_AIRPORTS.find(a => a.icao === userHomeAirportIc
 // Display View Mode Configuration
 let isSyntheticVisionEnabled = true;
 let isMapBackdropEnabled = true;
+// True in the "HSI + MOVING MAP" layout: the live map is drawn behind a see-through HSI
+let hsiMapOverlayActive = false;
+const HSI_MAP_RANGE_NM = 10.0;
+const HSI_MAP_RANGE_RINGS = [
+  { ratio: 0.25, label: "2.5 NM" },
+  { ratio: 0.50, label: "5 NM" },
+  { ratio: 1.00, label: "10 NM" }
+];
 let showFlightPathMarker = true;
 
 // Turn Coordinator & Inclinometer Ball Toggle (Saved in localStorage)
@@ -3899,6 +3907,93 @@ function resizeCanvases() {
   if (leafletMap) {
     try { leafletMap.invalidateSize(); } catch(e) {}
   }
+  if (typeof layoutHsiMapUnderlay === 'function') layoutHsiMapUnderlay();
+}
+
+// --- HSI + MOVING MAP: the map sits behind the HSI, heading-up and scaled so the
+// outer compass ring is exactly HSI_MAP_RANGE_NM. The map element is a square big
+// enough to cover the screen at any rotation, centred on the HSI's own-ship symbol.
+const hsiMapUnderlay = { size: 0, radius: 0, heading: NaN, zoom: NaN };
+
+function layoutHsiMapUnderlay() {
+  const wrapper = document.getElementById("map-viewport-wrapper");
+  const cluster = document.getElementById("efis-map-instrument-cluster");
+  if (!wrapper || !cluster) return;
+
+  // Only while the map is mounted under the HSI (not when swiped over to the map screen)
+  if (!hsiMapOverlayActive || wrapper.parentElement !== cluster) {
+    if (hsiMapUnderlay.size) {
+      wrapper.style.width = "";
+      wrapper.style.height = "";
+      wrapper.style.left = "";
+      wrapper.style.top = "";
+      wrapper.style.transform = "";
+      wrapper.style.removeProperty("--hsi-map-upright");
+      hsiMapUnderlay.size = 0;
+      if (leafletMap) {
+        leafletMap.options.zoomSnap = 1;
+        leafletMap.invalidateSize();
+        leafletMap.setView([sim.lat, sim.lon], Math.round(leafletMap.getZoom()), { animate: false });
+      }
+    }
+    return;
+  }
+
+  const cRect = cluster.getBoundingClientRect();
+  const hRect = canvasHsiMaster ? canvasHsiMaster.getBoundingClientRect() : null;
+  if (!hRect || !cRect.width || !hRect.width) return;
+
+  // Same geometry as renderHsiMaster
+  const cx = hRect.left - cRect.left + hRect.width / 2;
+  const cy = hRect.top - cRect.top + hRect.height / 2 + 6;
+  const far = Math.hypot(Math.max(cx, cRect.width - cx), Math.max(cy, cRect.height - cy));
+  const size = Math.ceil(far * 2) + 4;
+
+  wrapper.style.width = size + "px";
+  wrapper.style.height = size + "px";
+  wrapper.style.left = (cx - size / 2) + "px";
+  wrapper.style.top = (cy - size / 2) + "px";
+
+  hsiMapUnderlay.size = size;
+  hsiMapUnderlay.radius = Math.min(hRect.width * 0.44, (hRect.height - 76) * 0.46);
+  hsiMapUnderlay.heading = NaN;
+  hsiMapUnderlay.zoom = NaN;
+  if (leafletMap) {
+    leafletMap.options.zoomSnap = 0;
+    leafletMap.invalidateSize({ animate: false });
+  }
+}
+
+function updateHsiMapUnderlay(tel) {
+  if (!hsiMapOverlayActive || !leafletMap || !hsiMapUnderlay.size) return;
+  const wrapper = document.getElementById("map-viewport-wrapper");
+  if (!wrapper) return;
+
+  const hdgDiff = (tel.heading - hsiMapUnderlay.heading + 540) % 360 - 180;
+  if (!(Math.abs(hdgDiff) < 0.15)) {
+    hsiMapUnderlay.heading = tel.heading;
+    wrapper.style.transform = "rotate(" + (-tel.heading).toFixed(2) + "deg)";
+    wrapper.style.setProperty("--hsi-map-upright", tel.heading.toFixed(2) + "deg");
+  }
+
+  // Zoom so that HSI_MAP_RANGE_NM spans the compass radius (Web Mercator metres per pixel)
+  const latRad = tel.latitude * Math.PI / 180;
+  const zoom = Math.log2(156543.03392 * Math.cos(latRad) * hsiMapUnderlay.radius / (HSI_MAP_RANGE_NM * 1852));
+  if (!isFinite(zoom)) return;
+
+  if (!(Math.abs(zoom - hsiMapUnderlay.zoom) < 0.02)) {
+    hsiMapUnderlay.zoom = zoom;
+    leafletMap.setView([tel.latitude, tel.longitude], zoom, { animate: false });
+    return;
+  }
+
+  // Small moves: shift the map pane by the pixel offset (cheaper than setView every frame)
+  const pt = leafletMap.latLngToContainerPoint([tel.latitude, tel.longitude]);
+  const dx = pt.x - hsiMapUnderlay.size / 2;
+  const dy = pt.y - hsiMapUnderlay.size / 2;
+  if (dx * dx + dy * dy >= 0.25) {
+    leafletMap.panBy([dx, dy], { animate: false });
+  }
 }
 window.addEventListener("resize", resizeCanvases);
 window.addEventListener("DOMContentLoaded", resizeCanvases);
@@ -4553,6 +4648,24 @@ function renderPfdMaster(ctx, tel, w, h) {
 }
 
 // --- 5.3 MASTER HSI LOWER HALF ---
+// Darkens the map around the compass so the dial and the data boxes stand out.
+// The gradient is cached and only rebuilt when the canvas size changes.
+let hsiMapVignette = null;
+let hsiMapVignetteW = 0;
+let hsiMapVignetteH = 0;
+function renderHsiMapVignette(ctx, cx, cy, radius, dw, dh) {
+  if (!hsiMapVignette || hsiMapVignetteW !== dw || hsiMapVignetteH !== dh) {
+    hsiMapVignette = ctx.createRadialGradient(cx, cy, radius * 0.92, cx, cy, Math.hypot(dw, dh) * 0.62);
+    hsiMapVignette.addColorStop(0, "rgba(2, 4, 10, 0)");
+    hsiMapVignette.addColorStop(0.3, "rgba(2, 4, 10, 0.35)");
+    hsiMapVignette.addColorStop(1, "rgba(2, 4, 10, 0.78)");
+    hsiMapVignetteW = dw;
+    hsiMapVignetteH = dh;
+  }
+  ctx.fillStyle = hsiMapVignette;
+  ctx.fillRect(0, 0, dw, dh);
+}
+
 function renderHsiMaster(ctx, tel, w, h) {
   ctx.save();
   const dpr = window.devicePixelRatio || 1;
@@ -4565,11 +4678,15 @@ function renderHsiMaster(ctx, tel, w, h) {
 
   ctx.clearRect(0, 0, dw, dh);
 
-  // 1. BACKGROUND UNDERLAY
-  ctx.fillStyle = "#040711";
-  ctx.fillRect(0, 0, dw, dh);
+  // 1. BACKGROUND UNDERLAY (in HSI + MOVING MAP the live map shows through instead)
+  if (hsiMapOverlayActive) {
+    renderHsiMapVignette(ctx, cx, cy, radius, dw, dh);
+  } else {
+    ctx.fillStyle = "#040711";
+    ctx.fillRect(0, 0, dw, dh);
+  }
 
-  if (isMapBackdropEnabled) {
+  if (isMapBackdropEnabled && !hsiMapOverlayActive) {
     // Subtle circular gradient underlay behind the compass
     const mapBg = ctx.createRadialGradient(cx, cy, 10, cx, cy, radius * 1.4);
     mapBg.addColorStop(0, "#0c1f15");
@@ -4590,7 +4707,7 @@ function renderHsiMaster(ctx, tel, w, h) {
   }
 
   // 2. CONCENTRIC RADAR / DISTANCE RANGE RINGS (Centered at cx, cy)
-  const rangeRings = [
+  const rangeRings = hsiMapOverlayActive ? HSI_MAP_RANGE_RINGS : [
     { ratio: 0.33, label: "2.5 NM" },
     { ratio: 0.66, label: "5.0 NM" },
     { ratio: 1.00, label: "10.0 NM" }
@@ -4598,7 +4715,7 @@ function renderHsiMaster(ctx, tel, w, h) {
 
   rangeRings.forEach(ring => {
     const r = radius * ring.ratio;
-    ctx.strokeStyle = "rgba(0, 229, 255, 0.22)";
+    ctx.strokeStyle = hsiMapOverlayActive ? "rgba(0, 229, 255, 0.55)" : "rgba(0, 229, 255, 0.22)";
     ctx.lineWidth = 1.0;
     ctx.setLineDash([4, 6]);
     ctx.beginPath();
@@ -4610,14 +4727,36 @@ function renderHsiMaster(ctx, tel, w, h) {
     const labelRad = 45 * Math.PI / 180;
     const lx = cx + r * Math.sin(labelRad);
     const ly = cy - r * Math.cos(labelRad);
-    ctx.fillStyle = "rgba(0, 229, 255, 0.6)";
     ctx.font = "bold 9px 'Share Tech Mono', monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
+    if (hsiMapOverlayActive) {
+      ctx.lineWidth = 3;
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.75)";
+      ctx.strokeText(ring.label, lx, ly - 2);
+      ctx.lineJoin = "miter";
+      ctx.fillStyle = "#7df3ff";
+    } else {
+      ctx.fillStyle = "rgba(0, 229, 255, 0.6)";
+    }
     ctx.fillText(ring.label, lx, ly - 2);
   });
 
   // Inner Compass Shadow & Mask Bezel
+  if (hsiMapOverlayActive) {
+    // Smoked-glass band under the tick marks and numbers only, so the map stays clear inside
+    ctx.fillStyle = "rgba(3, 7, 16, 0.62)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.arc(cx, cy, radius - 44, 0, Math.PI * 2, true);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0, 229, 255, 0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius - 44, 0, Math.PI * 2);
+    ctx.stroke();
+  } else {
   const compassBg = ctx.createRadialGradient(cx, cy, radius * 0.2, cx, cy, radius);
   compassBg.addColorStop(0, "rgba(5, 8, 17, 0.85)");
   compassBg.addColorStop(0.85, "rgba(7, 11, 24, 0.92)");
@@ -4626,6 +4765,7 @@ function renderHsiMaster(ctx, tel, w, h) {
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.fill();
+  }
 
   // Outer Precision Dial Bezel Ring
   ctx.strokeStyle = "#24324a";
@@ -4877,7 +5017,7 @@ function renderHsiMaster(ctx, tel, w, h) {
 
   // 6. ADS-B TRAFFIC TARGETS ON HSI COMPASS ROSE (Range: 12 NM)
   if (trafficMgr.showTraffic) {
-    const radarRangeNm = 12.0;
+    const radarRangeNm = hsiMapOverlayActive ? HSI_MAP_RANGE_NM : 12.0;
     const pxPerNm = radius / radarRangeNm;
 
     trafficMgr.targets.forEach(tgt => {
@@ -7553,6 +7693,8 @@ function mainLoop(now) {
     }
   }
 
+  updateHsiMapUnderlay(renderTel);
+
   // Map overlays are Leaflet DOM layers, so refresh them at 2 Hz rather than every frame
   mapOverlayElapsedSec += dt;
   const refreshMapOverlays = mapOverlayElapsedSec >= MAP_OVERLAY_REFRESH_SEC;
@@ -8218,7 +8360,8 @@ const ORIENTATION_MODES = [
   { id: "landscape-map-mode", label: "LANDSCAPE SPLIT (MAP)", desc: "PFD Left / Live Moving Map Right Split" },
   { id: "fullscreen-pfd-mode", label: "FULL SCREEN PFD", desc: "100% Full-Bleed Attitude Director & Tapes" },
   { id: "fullscreen-hsi-mode", label: "FULL SCREEN HSI", desc: "100% Full-Bleed HSI Compass & Nav Data" },
-  { id: "fullscreen-map-mode", label: "FULL SCREEN MAP", desc: "100% Full-Bleed Interactive Aviation Moving Map" }
+  { id: "fullscreen-map-mode", label: "FULL SCREEN MAP", desc: "100% Full-Bleed Interactive Aviation Moving Map" },
+  { id: "fullscreen-hsi-map-mode", label: "HSI + MOVING MAP", desc: "HSI Compass Overlaid on the Live Moving Map" }
 ];
 
 let currentOrientationIndex = 0;
@@ -8238,7 +8381,7 @@ function syncMapContainerLocation() {
   if (!mapWrapper || !efisMapCluster || !screenMapContainer) return;
 
   const currentMode = ORIENTATION_MODES[currentOrientationIndex] || ORIENTATION_MODES[0];
-  const isEfisMapMode = (currentMode.id === "portrait-map-mode" || currentMode.id === "landscape-map-mode" || currentMode.id === "fullscreen-map-mode");
+  const isEfisMapMode = (currentMode.id === "portrait-map-mode" || currentMode.id === "landscape-map-mode" || currentMode.id === "fullscreen-map-mode" || currentMode.id === "fullscreen-hsi-map-mode");
 
   if (currentScreenIndex === 0 && isEfisMapMode) {
     if (mapWrapper.parentElement !== efisMapCluster) {
@@ -8249,6 +8392,8 @@ function syncMapContainerLocation() {
       screenMapContainer.appendChild(mapWrapper);
     }
   }
+
+  layoutHsiMapUnderlay();
 
   if (typeof weatherService !== 'undefined' && weatherService) {
     weatherService.renderCurrentRadarTile();
@@ -8270,6 +8415,7 @@ function applyOrientationMode(index, announce = false) {
 
   ORIENTATION_MODES.forEach(m => document.body.classList.remove(m.id));
   document.body.classList.add(currentMode.id);
+  hsiMapOverlayActive = currentMode.id === "fullscreen-hsi-map-mode";
   localStorage.setItem("efis_orientation_mode", currentMode.id);
 
   const btnHeader = document.getElementById("btn-toggle-orientation");
@@ -8298,6 +8444,7 @@ function applyOrientationMode(index, announce = false) {
 
   syncMapContainerLocation();
   resizeCanvases();
+  layoutHsiMapUnderlay();
 
   if (typeof deviceSensors !== 'undefined' && deviceSensors) {
     deviceSensors.handleOrientationChange();
