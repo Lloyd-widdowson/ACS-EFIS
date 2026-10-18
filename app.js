@@ -2723,6 +2723,16 @@ class AhrsSensorFilter {
     this.lastHeadingTime = 0;
   }
 
+  // Each channel seeds itself from its first sample. Setting hasInit marks every channel at once.
+  get hasInit() {
+    const c = this.channelInit;
+    return c.pitch && c.roll && c.heading && c.gForce;
+  }
+
+  set hasInit(value) {
+    this.channelInit = { pitch: value, roll: value, heading: value, gForce: value };
+  }
+
   get currentPreset() {
     return AHRS_DAMPING_PRESETS[this.presetIndex];
   }
@@ -2760,8 +2770,9 @@ class AhrsSensorFilter {
   }
 
   filterPitch(rawPitch, customDt = null) {
-    if (!this.hasInit) {
+    if (!this.channelInit.pitch) {
       this.pitch = rawPitch;
+      this.channelInit.pitch = true;
       this.lastPitchTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       return this.pitch;
     }
@@ -2784,8 +2795,9 @@ class AhrsSensorFilter {
   }
 
   filterRoll(rawRoll, customDt = null) {
-    if (!this.hasInit) {
+    if (!this.channelInit.roll) {
       this.roll = rawRoll;
+      this.channelInit.roll = true;
       this.lastRollTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       return this.roll;
     }
@@ -2808,9 +2820,9 @@ class AhrsSensorFilter {
   }
 
   filterHeading(rawHeading, customDt = null) {
-    if (!this.hasInit) {
+    if (!this.channelInit.heading) {
       this.heading = rawHeading;
-      this.hasInit = true;
+      this.channelInit.heading = true;
       this.lastHeadingTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       return this.heading;
     }
@@ -2833,9 +2845,9 @@ class AhrsSensorFilter {
   }
 
   filterGForce(rawG) {
-    if (!this.hasInit) {
+    if (!this.channelInit.gForce) {
       this.gForce = rawG;
-      this.hasInit = true;
+      this.channelInit.gForce = true;
       return this.gForce;
     }
     const diff = rawG - this.gForce;
@@ -2902,6 +2914,15 @@ class DeviceSensorBridge {
     this.boundOrientationHandler = null;
     this.boundMotionHandler = null;
     this.barometerSensor = null;
+    this.turnRateDegPerSec = 0.0;
+    this.lastTurnHeadingDeg = null;
+    this.motionPermissionPending = false;
+
+    // Registered once here; previously re-added on every enable, stacking duplicate handlers
+    window.addEventListener("orientationchange", () => this.handleOrientationChange());
+    if (window.screen && window.screen.orientation) {
+      window.screen.orientation.addEventListener("change", () => this.handleOrientationChange());
+    }
 
     if (this.useLiveSensors) {
       setTimeout(() => this.enableLiveSensors(), 200);
@@ -3011,7 +3032,7 @@ class DeviceSensorBridge {
     this.gpsDenied = false;
 
     // 1. Geolocation (Real Hardware GPS Receiver)
-    if ("geolocation" in navigator) {
+    if ("geolocation" in navigator && this.gpsWatchId === null) {
       this.gpsWatchId = navigator.geolocation.watchPosition(
         (pos) => {
           this.hasGpsFix = true;
@@ -3068,6 +3089,8 @@ class DeviceSensorBridge {
                 const VSI_DEADBAND_FPM = 50.0;
                 const filteredVs = (Math.abs(rawVsFpm) < VSI_DEADBAND_FPM) ? 0.0 : rawVsFpm;
                 this.liveVsFpm += (filteredVs - this.liveVsFpm) * 0.25;
+                // The smoothed value decays toward zero without reaching it; clamp the output too
+                if (Math.abs(this.liveVsFpm) < VSI_DEADBAND_FPM) this.liveVsFpm = 0.0;
                 sim.verticalSpeedFpm = this.liveVsFpm;
               }
             }
@@ -3089,6 +3112,74 @@ class DeviceSensorBridge {
       );
     }
 
+    // 2 & 3. Gyro / compass / accelerometer (iOS 13+ needs an explicit permission prompt)
+    this.requestMotionSensors();
+
+    // 4. Native Generic Sensor Barometer API
+    if (typeof window !== 'undefined' && 'Barometer' in window && !this.barometerSensor) {
+      try {
+        this.barometerSensor = new window.Barometer({ frequency: 10 });
+        this.barometerSensor.addEventListener('reading', () => {
+          if (this.barometerSensor.pressure) {
+            this.hasBaroFix = true;
+            this.pressureHpa = this.barometerSensor.pressure;
+            const qnh = sim.qnhHpa || 1013.25;
+            const baroAltFt = 145366.45 * (1.0 - Math.pow(this.pressureHpa / qnh, 0.190284));
+            this.liveAltFt = baroAltFt;
+            sim.altitudeFt = baroAltFt;
+          }
+        });
+        this.barometerSensor.start();
+      } catch(e) {
+        this.hasBaroFix = false;
+      }
+    }
+
+    this.updateUiStatus();
+  }
+
+  requestMotionSensors() {
+    const needsPermission = typeof window !== 'undefined' && window.DeviceOrientationEvent &&
+      typeof window.DeviceOrientationEvent.requestPermission === 'function';
+    if (!needsPermission) {
+      this.attachMotionSensors();
+      return;
+    }
+    if (this.motionPermissionPending) return;
+    this.motionPermissionPending = true;
+
+    const ask = () => {
+      const motionAsk = (window.DeviceMotionEvent && typeof window.DeviceMotionEvent.requestPermission === 'function')
+        ? window.DeviceMotionEvent.requestPermission() : Promise.resolve("granted");
+      return Promise.all([window.DeviceOrientationEvent.requestPermission(), motionAsk]);
+    };
+
+    const onGesture = () => {
+      document.removeEventListener("touchend", onGesture, true);
+      document.removeEventListener("click", onGesture, true);
+      if (!this.useLiveSensors) { this.motionPermissionPending = false; return; }
+      ask().then(([orientation]) => {
+        this.motionPermissionPending = false;
+        if (orientation === "granted" && this.useLiveSensors) this.attachMotionSensors();
+        this.updateUiStatus();
+      }).catch(() => { this.motionPermissionPending = false; });
+    };
+
+    // Safari only shows the prompt from inside a user gesture, so try now (works when called
+    // from a tap) and otherwise wait for the next tap anywhere on the page.
+    ask().then(([orientation]) => {
+      this.motionPermissionPending = false;
+      if (orientation === "granted" && this.useLiveSensors) this.attachMotionSensors();
+      this.updateUiStatus();
+    }).catch(() => {
+      document.addEventListener("touchend", onGesture, true);
+      document.addEventListener("click", onGesture, true);
+    });
+  }
+
+  attachMotionSensors() {
+    if (this.boundOrientationHandler || this.boundMotionHandler) return;
+
     // 2. DeviceOrientation (Real Gyro Attitude / Pitch & Roll & Compass)
     if (typeof window !== 'undefined' && window.DeviceOrientationEvent) {
       this.boundOrientationHandler = (e) => {
@@ -3108,14 +3199,14 @@ class DeviceSensorBridge {
             compHdg = rawHdg;
           }
 
-          if (compHdg !== null) {
+          // Compass drives heading only while stationary (< 2.5 kt) or without GPS; feeding it
+          // to the shared heading filter while moving would drag the GPS track toward the compass.
+          if (compHdg !== null && (this.liveSpeedKt < 2.5 || !this.hasGpsFix)) {
             const filteredCompass = ahrsFilter.filterHeading(compHdg);
-            if (this.liveSpeedKt < 2.5 || !this.hasGpsFix) {
-              this.liveHeadingDeg = filteredCompass;
-              this.liveTrackDeg = filteredCompass;
-              sim.headingDeg = filteredCompass;
-              sim.groundTrackDeg = filteredCompass;
-            }
+            this.liveHeadingDeg = filteredCompass;
+            this.liveTrackDeg = filteredCompass;
+            sim.headingDeg = filteredCompass;
+            sim.groundTrackDeg = filteredCompass;
           }
           this.updateUiStatus();
         }
@@ -3137,40 +3228,16 @@ class DeviceSensorBridge {
             if (Math.abs(rawG - 1.0) < 0.06) {
               rawG = 1.0;
             }
-            this.liveGForce = ahrsFilter.filterGForce(Math.max(0.2, Math.min(6.0, rawG)));
+            let filteredG = ahrsFilter.filterGForce(Math.max(0.2, Math.min(6.0, rawG)));
+            // The filter settles within its 0.02 G deadband of 1.0 G, so clamp the output as well
+            if (Math.abs(filteredG - 1.0) < 0.06) filteredG = 1.0;
+            this.liveGForce = filteredG;
             sim.gForceZ = this.liveGForce;
           }
         }
       };
       window.addEventListener("devicemotion", this.boundMotionHandler, true);
     }
-
-    // 4. Native Generic Sensor Barometer API
-    if (typeof window !== 'undefined' && 'Barometer' in window) {
-      try {
-        this.barometerSensor = new window.Barometer({ frequency: 10 });
-        this.barometerSensor.addEventListener('reading', () => {
-          if (this.barometerSensor.pressure) {
-            this.hasBaroFix = true;
-            this.pressureHpa = this.barometerSensor.pressure;
-            const qnh = sim.qnhHpa || 1013.25;
-            const baroAltFt = 145366.45 * (1.0 - Math.pow(this.pressureHpa / qnh, 0.190284));
-            this.liveAltFt = baroAltFt;
-            sim.altitudeFt = baroAltFt;
-          }
-        });
-        this.barometerSensor.start();
-      } catch(e) {
-        this.hasBaroFix = false;
-      }
-    }
-
-    window.addEventListener("orientationchange", () => this.handleOrientationChange());
-    if (window.screen && window.screen.orientation) {
-      window.screen.orientation.addEventListener("change", () => this.handleOrientationChange());
-    }
-
-    this.updateUiStatus();
   }
 
   disableLiveSensors() {
@@ -3216,8 +3283,17 @@ class DeviceSensorBridge {
     const angleDiff = (brgToDest - this.liveTrackDeg) * Math.PI / 180;
     const xtkNm = Math.sin(angleDiff) * distToDest;
 
-    // Rate of turn
-    const turnRate = (ahrsFilter && Math.abs(ahrsFilter.turnRate) > 0.1) ? ahrsFilter.turnRate : 0.0;
+    // Rate of turn from the change in heading, smoothed over ~1 s. Zero while stationary so
+    // compass jitter on the ground does not deflect the turn coordinator.
+    if (this.lastTurnHeadingDeg === null || this.liveSpeedKt < 2.5) {
+      this.turnRateDegPerSec = 0.0;
+    } else if (dt > 0) {
+      const hdgStep = (this.liveHeadingDeg - this.lastTurnHeadingDeg + 540) % 360 - 180;
+      const turnAlpha = 1.0 - Math.exp(-dt / 1.0);
+      this.turnRateDegPerSec += (hdgStep / dt - this.turnRateDegPerSec) * turnAlpha;
+    }
+    this.lastTurnHeadingDeg = this.liveHeadingDeg;
+    const turnRate = Math.abs(this.turnRateDegPerSec) > 0.1 ? this.turnRateDegPerSec : 0.0;
     const slipVal = (this.liveGForce > 0) ? (Math.sin(this.liveRollDeg * Math.PI / 180) * 0.2) : 0.0;
 
     return {
@@ -6064,44 +6140,67 @@ function renderAirportsOnMap() {
   });
 }
 
+// Ring circles are created once and moved in place; rebuilding them every frame churned the DOM.
+let mapGlideCircle = null;
+let mapRangeRingCircles = [];
+const RANGE_RING_NM = [10, 25, 50];
+
 function updateGlideRangeRing() {
   if (!mapGlideRingLayer || !leafletMap) return;
-  mapGlideRingLayer.clearLayers();
-  if (!showGlideRing) return;
+  if (!showGlideRing) {
+    mapGlideRingLayer.clearLayers();
+    mapGlideCircle = null;
+    return;
+  }
 
   const maxGlideNm = (sim.altitudeFt / 6076.12) * currentProfile.bestGlideRatio;
-  const maxGlideMeters = maxGlideNm * 1852;
+  const maxGlideMeters = Math.max(0, maxGlideNm * 1852);
+  const tooltip = `<strong>MAX GLIDE CONE: ${maxGlideNm.toFixed(1)} NM</strong><br>Alt: ${Math.round(sim.altitudeFt)} ft`;
 
-  L.circle([sim.lat, sim.lon], {
-    radius: maxGlideMeters,
-    color: '#00e676',
-    weight: 2,
-    fillColor: '#00e676',
-    fillOpacity: 0.08,
-    dashArray: '6, 6'
-  }).bindTooltip(`<strong>MAX GLIDE CONE: ${maxGlideNm.toFixed(1)} NM</strong><br>Alt: ${Math.round(sim.altitudeFt)} ft`, {
-    permanent: false,
-    direction: 'center',
-    className: 'leaflet-tooltip-dark'
-  }).addTo(mapGlideRingLayer);
+  if (!mapGlideCircle || !mapGlideRingLayer.hasLayer(mapGlideCircle)) {
+    mapGlideRingLayer.clearLayers();
+    mapGlideCircle = L.circle([sim.lat, sim.lon], {
+      radius: maxGlideMeters,
+      color: '#00e676',
+      weight: 2,
+      fillColor: '#00e676',
+      fillOpacity: 0.08,
+      dashArray: '6, 6'
+    }).bindTooltip(tooltip, {
+      permanent: false,
+      direction: 'center',
+      className: 'leaflet-tooltip-dark'
+    }).addTo(mapGlideRingLayer);
+    return;
+  }
+
+  mapGlideCircle.setLatLng([sim.lat, sim.lon]);
+  mapGlideCircle.setRadius(maxGlideMeters);
+  mapGlideCircle.setTooltipContent(tooltip);
 }
 
 function renderRangeRings() {
   if (!mapRangeRingsLayer) return;
-  mapRangeRingsLayer.clearLayers();
-  if (!showRangeRings) return;
+  if (!showRangeRings) {
+    mapRangeRingsLayer.clearLayers();
+    mapRangeRingCircles = [];
+    return;
+  }
 
-  const nmToMeters = 1852;
-  [10, 25, 50].forEach(nm => {
-    L.circle([sim.lat, sim.lon], {
-      radius: nm * nmToMeters,
+  if (mapRangeRingCircles.length !== RANGE_RING_NM.length || !mapRangeRingsLayer.hasLayer(mapRangeRingCircles[0])) {
+    mapRangeRingsLayer.clearLayers();
+    mapRangeRingCircles = RANGE_RING_NM.map(nm => L.circle([sim.lat, sim.lon], {
+      radius: nm * 1852,
       color: '#00e5ff',
       weight: 1,
       fill: false,
       dashArray: '4, 6',
       opacity: 0.35
-    }).addTo(mapRangeRingsLayer);
-  });
+    }).addTo(mapRangeRingsLayer));
+    return;
+  }
+
+  mapRangeRingCircles.forEach(circle => circle.setLatLng([sim.lat, sim.lon]));
 }
 
 // ============================================================================
@@ -6702,6 +6801,8 @@ function bootEfisSuite() {
   switchToScreen(0, false);
 }
 let lastTime = performance.now();
+const MAP_OVERLAY_REFRESH_SEC = 0.5;
+let mapOverlayElapsedSec = MAP_OVERLAY_REFRESH_SEC;
 
 function mainLoop(now) {
   const dt = Math.min(0.05, Math.max(0.005, (now - lastTime) / 1000.0));
@@ -6759,15 +6860,21 @@ function mainLoop(now) {
     }
   }
 
-  updateGlideRangeRing();
-  renderRangeRings();
+  // Map overlays are Leaflet DOM layers, so refresh them at 2 Hz rather than every frame
+  mapOverlayElapsedSec += dt;
+  const refreshMapOverlays = mapOverlayElapsedSec >= MAP_OVERLAY_REFRESH_SEC;
+  if (refreshMapOverlays) {
+    mapOverlayElapsedSec = 0;
+    updateGlideRangeRing();
+    renderRangeRings();
+  }
 
   // Update Live PFD VHF Frequency Status Block
   updatePfdFrequencyHud(renderTel);
 
   // Update Live ADS-B Traffic Manager & Collision Avoidance
   trafficMgr.update(dt, renderTel.latitude, renderTel.longitude, renderTel.indicatedAltitude, renderTel.heading, renderTel.groundSpeed);
-  renderTrafficOnMap();
+  if (refreshMapOverlays) renderTrafficOnMap();
 
   const adsbStatusText = document.getElementById("adsb-status-text");
   if (adsbStatusText) {

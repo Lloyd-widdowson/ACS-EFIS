@@ -44,5 +44,5 @@ ACS EFIS & FMS is an experimental, offline-capable Electronic Flight Instrument 
 
 ## Operational Constraints & Guardrails
 - **Safety Disclaimers:** Never remove or weaken the FAA/CASA/EASA non-operational, experimental hobbyist disclaimer in `index.html` or `readme.md`.
-- **Test Integrity:** Never alter assertions in `test-suite.js` to bypass failing tests; fix the underlying math or logic in `app.js`. All 31 tests must pass (100% pass rate).
+- **Test Integrity:** Never alter assertions in `test-suite.js` to bypass failing tests; fix the underlying math or logic in `app.js`. All 32 tests must pass (100% pass rate).
 - **CORS & ADS-B Proxy:** Client-side aviation endpoints often block CORS; route traffic fetches via `/api/adsb` on the local server daemon, falling back gracefully to direct endpoints or simulation fleet.
