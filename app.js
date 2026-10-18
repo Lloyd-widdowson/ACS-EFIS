@@ -5439,6 +5439,13 @@ const MAP_LAYERS = {
 };
 
 let currentTileLayer = null;
+let currentMapLayerKey = "dark";
+
+// Base layers enabled for route pre-caching. OpenStreetMap and OpenTopoMap tile policies
+// forbid bulk downloading and Esri imagery terms restrict offline caching, so those stay online-only.
+const OFFLINE_DOWNLOADABLE_LAYERS = {
+  dark: "Aeronautical Dark (CARTO)"
+};
 
 function initLeafletFlightMap() {
   const mapDiv = document.getElementById("leaflet-flight-map");
@@ -5452,7 +5459,7 @@ function initLeafletFlightMap() {
       attributionControl: false
     });
 
-    currentTileLayer = L.tileLayer(MAP_LAYERS.dark, { maxZoom: 18 }).addTo(leafletMap);
+    currentTileLayer = createOfflineAwareTileLayer(currentMapLayerKey, MAP_LAYERS[currentMapLayerKey], { maxZoom: 18 }).addTo(leafletMap);
 
     const planeIcon = L.divIcon({
       className: 'leaflet-plane-icon',
@@ -7352,10 +7359,111 @@ document.querySelectorAll(".layer-btn").forEach(btn => {
     const layerKey = this.getAttribute("data-layer");
     if (leafletMap && currentTileLayer && MAP_LAYERS[layerKey]) {
       leafletMap.removeLayer(currentTileLayer);
-      currentTileLayer = L.tileLayer(MAP_LAYERS[layerKey], { maxZoom: 18 }).addTo(leafletMap);
+      currentMapLayerKey = layerKey;
+      currentTileLayer = createOfflineAwareTileLayer(layerKey, MAP_LAYERS[layerKey], { maxZoom: 18 }).addTo(leafletMap);
     }
   });
 });
+
+// Offline Route Map Tiles (Settings)
+let offlineTileDownloadAbort = null;
+
+function readOfflineTileSettings() {
+  const num = (id, fallback) => {
+    const v = parseFloat(document.getElementById(id)?.value);
+    return isNaN(v) ? fallback : v;
+  };
+  const minZoom = Math.max(1, Math.min(16, Math.round(num("cfg-offline-min-zoom", 8))));
+  const maxZoom = Math.max(minZoom, Math.min(16, Math.round(num("cfg-offline-max-zoom", 12))));
+  const corridorNm = Math.max(1, Math.min(50, num("cfg-offline-corridor-nm", 10)));
+  const layerKey = document.getElementById("select-offline-layer")?.value || "dark";
+  return { layerKey, minZoom, maxZoom, corridorNm };
+}
+
+async function refreshOfflineTileStatus(message) {
+  const status = document.getElementById("offline-tiles-status");
+  if (!status) return;
+  if (!OfflineTileCache.isSupported()) {
+    status.textContent = "Offline tiles unavailable: this browser has no IndexedDB storage.";
+    return;
+  }
+  const cfg = readOfflineTileSettings();
+  const needed = OfflineTileCache.tilesForRoute(sim.routeWaypoints, cfg.corridorNm, cfg.minZoom, cfg.maxZoom).length;
+  let stored = 0;
+  try { stored = await OfflineTileCache.countTiles(); } catch (e) {}
+  const prefix = message ? `${message} · ` : "";
+  status.textContent = `${prefix}Route corridor needs ${needed} tiles · ${stored} tiles stored on device`;
+}
+
+function initOfflineTileControls() {
+  const select = document.getElementById("select-offline-layer");
+  if (!select) return;
+  select.innerHTML = "";
+  Object.entries(OFFLINE_DOWNLOADABLE_LAYERS).forEach(([key, label]) => {
+    const opt = document.createElement("option");
+    opt.value = key;
+    opt.textContent = label;
+    select.appendChild(opt);
+  });
+
+  ["select-offline-layer", "cfg-offline-min-zoom", "cfg-offline-max-zoom", "cfg-offline-corridor-nm"].forEach(id => {
+    document.getElementById(id)?.addEventListener("change", () => refreshOfflineTileStatus());
+  });
+
+  const btnDownload = document.getElementById("btn-offline-download");
+  const btnCancel = document.getElementById("btn-offline-cancel");
+  const btnClear = document.getElementById("btn-offline-clear");
+  const progress = document.getElementById("offline-tiles-progress");
+
+  btnDownload?.addEventListener("click", async () => {
+    if (offlineTileDownloadAbort) return;
+    const cfg = readOfflineTileSettings();
+    offlineTileDownloadAbort = new AbortController();
+    btnDownload.disabled = true;
+    if (btnCancel) btnCancel.disabled = false;
+    try {
+      const stats = await OfflineTileCache.downloadRoute({
+        layerKey: cfg.layerKey,
+        template: MAP_LAYERS[cfg.layerKey],
+        waypoints: sim.routeWaypoints,
+        corridorNm: cfg.corridorNm,
+        minZoom: cfg.minZoom,
+        maxZoom: cfg.maxZoom,
+        signal: offlineTileDownloadAbort.signal,
+        onProgress: s => {
+          const done = s.fetched + s.skipped + s.failed;
+          if (progress) progress.value = s.total ? done / s.total : 0;
+          const status = document.getElementById("offline-tiles-status");
+          if (status) status.textContent = `Downloading ${done} / ${s.total} tiles (${s.failed} failed)`;
+        }
+      });
+      const verb = stats.aborted ? "Download cancelled" : "Download complete";
+      refreshOfflineTileStatus(`${verb}: ${stats.fetched} new, ${stats.skipped} already stored, ${stats.failed} failed`);
+    } catch (e) {
+      refreshOfflineTileStatus(e.message);
+    } finally {
+      offlineTileDownloadAbort = null;
+      btnDownload.disabled = false;
+      if (btnCancel) btnCancel.disabled = true;
+    }
+  });
+
+  btnCancel?.addEventListener("click", () => {
+    if (offlineTileDownloadAbort) offlineTileDownloadAbort.abort();
+  });
+
+  btnClear?.addEventListener("click", async () => {
+    if (offlineTileDownloadAbort) return;
+    if (!confirm("Delete all offline map tiles stored on this device?")) return;
+    try { await OfflineTileCache.clear(); } catch (e) {}
+    if (progress) progress.value = 0;
+    refreshOfflineTileStatus("Offline tiles cleared");
+  });
+
+  refreshOfflineTileStatus();
+}
+
+initOfflineTileControls();
 
 document.getElementById("btn-map-recenter")?.addEventListener("click", () => {
   if (leafletMap) leafletMap.setView([sim.lat, sim.lon], 10);
