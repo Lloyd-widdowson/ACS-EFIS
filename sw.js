@@ -1,8 +1,9 @@
-const CACHE_NAME = 'efis-suite-v3';
+const CACHE_NAME = 'efis-suite-v4';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
+  './offline-tiles.js',
   './app.js',
   './test-suite.js',
   './manifest.json',

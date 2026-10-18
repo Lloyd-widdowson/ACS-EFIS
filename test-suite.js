@@ -844,6 +844,71 @@ function runAllTests() {
   );
 
   // --------------------------------------------------------------------------
+  // Test 32: Offline Map Tile Math & Route Corridor Planner
+  // --------------------------------------------------------------------------
+  const hasTileCache = typeof OfflineTileCache !== 'undefined';
+  let tileMathOk = false;
+  let corridorOk = false;
+  let corridorCount = 0;
+  if (hasTileCache) {
+    // Web Mercator reference tiles: (0,0) at z1 is tile 1/1; Taree (YTRE) at z10 is 945/607
+    tileMathOk =
+      OfflineTileCache.lonToTileX(0, 1) === 1 &&
+      OfflineTileCache.latToTileY(0, 1) === 1 &&
+      OfflineTileCache.lonToTileX(152.5142, 10) === 945 &&
+      OfflineTileCache.latToTileY(-31.8986, 10) === 607 &&
+      OfflineTileCache.latToTileY(-89.9, 4) === 15;
+
+    const testRoute = [
+      { lat: -31.8986, lon: 152.5142 },
+      { lat: -31.4358, lon: 152.8631 }
+    ];
+    const corridorTiles = OfflineTileCache.tilesForRoute(testRoute, 5, 8, 11);
+    corridorCount = corridorTiles.length;
+    const keys = new Set(corridorTiles.map(t => `${t.z}/${t.x}/${t.y}`));
+    const noDuplicates = keys.size === corridorTiles.length;
+    let coversWaypoints = true;
+    for (let z = 8; z <= 11; z++) {
+      testRoute.forEach(w => {
+        const k = `${z}/${OfflineTileCache.lonToTileX(w.lon, z)}/${OfflineTileCache.latToTileY(w.lat, z)}`;
+        if (!keys.has(k)) coversWaypoints = false;
+      });
+    }
+    corridorOk = noDuplicates && coversWaypoints && corridorCount > 0 && corridorCount <= OfflineTileCache.MAX_TILES_PER_DOWNLOAD;
+  }
+  assert(
+    "Offline Map Tile Math & Route Corridor Planner",
+    hasTileCache && tileMathOk && corridorOk,
+    `Module=${hasTileCache}, TileMath=${tileMathOk}, Corridor=${corridorOk} (${corridorCount} tiles, z8-11, 5 NM)`
+  );
+
+  // --------------------------------------------------------------------------
+  // Test 33: Offline Tile URL Expansion, Layer Factory & Settings Controls
+  // --------------------------------------------------------------------------
+  let urlOk = false;
+  let layerFactoryOk = false;
+  if (hasTileCache) {
+    urlOk =
+      OfflineTileCache.expandUrl("https://{s}.example.com/{z}/{x}/{y}{r}.png", 10, 945, 608) === "https://c.example.com/10/945/608.png" &&
+      OfflineTileCache.tileKey("dark", 10, 945, 608) === "dark/10/945/608";
+  }
+  if (typeof createOfflineAwareTileLayer === 'function' && typeof L !== 'undefined') {
+    const layer = createOfflineAwareTileLayer("dark", MAP_LAYERS.dark, { maxZoom: 18 });
+    layerFactoryOk = !!layer && typeof layer.createTile === 'function' && layer instanceof L.TileLayer;
+  }
+  const offlineUiOk =
+    !!document.getElementById("btn-offline-download") &&
+    !!document.getElementById("btn-offline-clear") &&
+    !!document.getElementById("offline-tiles-status") &&
+    typeof OFFLINE_DOWNLOADABLE_LAYERS !== 'undefined' &&
+    !OFFLINE_DOWNLOADABLE_LAYERS.vfr && !OFFLINE_DOWNLOADABLE_LAYERS.topo;
+  assert(
+    "Offline Tile URL Expansion, Layer Factory & Settings Controls",
+    urlOk && layerFactoryOk && offlineUiOk,
+    `UrlExpansion=${urlOk}, LayerFactory=${layerFactoryOk}, SettingsUi=${offlineUiOk}`
+  );
+
+  // --------------------------------------------------------------------------
   // Render Results
   // --------------------------------------------------------------------------
   let passCount = 0;
