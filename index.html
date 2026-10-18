@@ -46,6 +46,18 @@
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="portrait-mode">
+  <!-- Startup Safety Disclaimer (must be accepted on every launch) -->
+  <div id="startup-disclaimer" class="startup-disclaimer" role="dialog" aria-modal="true" aria-labelledby="startup-disclaimer-title">
+    <div class="startup-disclaimer-card">
+      <h2 id="startup-disclaimer-title">⚠️ NOT FOR REAL AVIATION USE</h2>
+      <p><strong>ACS EFIS &amp; FMS is experimental hobbyist software.</strong> It is not certified or approved by the FAA, CASA, EASA or any other aviation authority.</p>
+      <p>Do not use it as a primary or secondary flight instrument, or rely on it for navigation, terrain clearance, traffic avoidance, airspace avoidance or any in-flight decision. Sensor, GPS, map and traffic data may be inaccurate, delayed or fail without warning.</p>
+      <p>By continuing you accept that you use this app entirely at your own risk.</p>
+      <button id="btn-accept-disclaimer" class="startup-disclaimer-btn">I UNDERSTAND &amp; ACCEPT</button>
+      <div class="startup-disclaimer-version">v3.3.0</div>
+    </div>
+  </div>
+
   <div id="app-container">
     
     <!-- Top Cockpit Status Bar with View Switcher, ADS-B Status & Emergency Quick Action -->
@@ -896,7 +908,7 @@
               <img src="icon-192.png" alt="ACS EFIS & FMS" style="width:64px; height:64px; border-radius:12px; border:2px solid #00e5ff; background:#fff; object-fit:contain; padding:2px; flex-shrink:0;">
               <div>
                 <h3 style="margin:0 0 4px 0; color:#fff; font-size:16px;">ACS EFIS &amp; FMS</h3>
-                <div style="font-size:11px; color:#00e5ff; font-weight:600;">Next-Gen Glass Cockpit Suite v3.2.0</div>
+                <div style="font-size:11px; color:#00e5ff; font-weight:600;">Next-Gen Glass Cockpit Suite v3.3.0</div>
                 <div style="font-size:10px; color:#9ca3af; margin-top:2px;">Australian VNC/VTC AIRAC • ADS-B In • AHRS Sensor Fusion</div>
               </div>
             </div>

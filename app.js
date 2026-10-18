@@ -8233,3 +8233,7 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 });
 
+// Startup safety disclaimer: shown on every launch until the pilot accepts it
+document.getElementById("btn-accept-disclaimer")?.addEventListener("click", () => {
+  document.getElementById("startup-disclaimer")?.classList.add("hidden");
+});
