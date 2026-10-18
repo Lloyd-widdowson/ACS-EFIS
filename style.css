@@ -3937,3 +3937,90 @@ body.landscape-map-mode .weather-hud-bar {
   font-size: 11px;
   color: #64748b;
 }
+
+/* ==========================================================================
+   Phone layout tidy-up (portrait ≤ 600px wide, or landscape ≤ 500px tall):
+   keep header chips on one line and shorten map layer labels.
+   ========================================================================== */
+@media (max-width: 600px), (max-height: 500px) {
+  #cockpit-header {
+    height: 32px;
+    gap: 4px;
+    overflow: hidden;
+  }
+
+  #cockpit-header .header-left {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  #cockpit-header .header-center,
+  #cockpit-header .header-right {
+    flex: 0 0 auto;
+  }
+
+  #cockpit-header .status-indicator,
+  #cockpit-header button,
+  #cockpit-header .time-display {
+    white-space: nowrap;
+    line-height: 1.2;
+  }
+
+  #cockpit-header .status-indicator {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 9px;
+  }
+
+  /* The PFD already shows traffic and airspace callouts; the header copies don't fit.
+     The stall/overspeed banner stays because the PFD has no copy of it. */
+  #cockpit-header #traffic-warning-banner,
+  #cockpit-header #airspace-warning-banner,
+  #cockpit-header #battery-status {
+    display: none !important;
+  }
+
+  #btn-emergency-nrst {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+
+  #btn-emergency-nrst .btn-label-long { display: none; }
+  #btn-emergency-nrst .btn-label-short { display: inline; }
+
+  /* Orientation button shows just its ⟲ icon; the page pill announces the mode on change */
+  #btn-toggle-orientation .orientation-mode-label {
+    display: none;
+  }
+
+  #zulu-clock {
+    font-size: 9px;
+  }
+
+  .map-layer-selector .btn-label-long {
+    display: none !important;
+  }
+
+  .map-layer-selector .btn-label-short {
+    display: inline !important;
+  }
+
+  .map-layer-selector .hud-title {
+    display: none;
+  }
+}
+
+/* Keep the VHF frequency box clear of the selected-speed bug at the top of the airspeed tape */
+@media (max-width: 768px) {
+  .pfd-freq-hud {
+    left: 58px;
+  }
+}
+
+body.portrait-map-mode .pfd-freq-hud,
+body.landscape-map-mode .pfd-freq-hud {
+  left: 58px;
+}
