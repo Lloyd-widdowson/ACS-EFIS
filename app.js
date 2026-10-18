@@ -3381,23 +3381,23 @@ class DeviceSensorBridge {
       }
       if (gpsStatus) {
         if (this.hasGpsFix) {
-          const accStr = this.gpsAccuracyM ? ` (±${this.gpsAccuracyM}m)` : '';
-          gpsStatus.innerHTML = `<span class="dot"></span> GPS: 3D FIX${accStr}`;
+          const accStr = this.gpsAccuracyM ? ` ±${this.gpsAccuracyM}m` : '';
+          gpsStatus.innerHTML = `<span class="dot"></span> GPS 3D${accStr}`;
           gpsStatus.className = "status-indicator live";
         } else if (this.gpsDenied) {
-          gpsStatus.innerHTML = `<span class="dot"></span> GPS: NO SIGNAL / DENIED`;
+          gpsStatus.innerHTML = `<span class="dot"></span> GPS DENIED`;
           gpsStatus.className = "status-indicator danger";
         } else {
-          gpsStatus.innerHTML = `<span class="dot"></span> GPS: ACQUIRING...`;
+          gpsStatus.innerHTML = `<span class="dot"></span> GPS ACQ…`;
           gpsStatus.className = "status-indicator warn";
         }
       }
       if (ahrsStatus) {
         if (this.hasAhrsFix) {
-          ahrsStatus.textContent = `AHRS: HARDWARE (60Hz)`;
+          ahrsStatus.textContent = `AHRS OK`;
           ahrsStatus.className = "status-indicator live";
         } else {
-          ahrsStatus.textContent = `AHRS: SENSORS UNAVAILABLE`;
+          ahrsStatus.textContent = `AHRS --`;
           ahrsStatus.className = "status-indicator warn";
         }
       }
@@ -3413,11 +3413,11 @@ class DeviceSensorBridge {
       if (gpsCoords) gpsCoords.textContent = `${sim.lat.toFixed(4)}°, ${sim.lon.toFixed(4)}° (SIMULATED)`;
       if (ahrsReadout) ahrsReadout.textContent = `Pitch ${sim.pitchDeg.toFixed(1)}° | Roll ${sim.rollDeg.toFixed(1)}° (SIMULATED)`;
       if (gpsStatus) {
-        gpsStatus.innerHTML = '<span class="dot"></span> GPS: SIMULATED';
+        gpsStatus.innerHTML = '<span class="dot"></span> GPS SIM';
         gpsStatus.className = "status-indicator ok";
       }
       if (ahrsStatus) {
-        ahrsStatus.textContent = "AHRS: SIMULATED";
+        ahrsStatus.textContent = "AHRS SIM";
         ahrsStatus.className = "status-indicator ok";
       }
     }
@@ -4009,7 +4009,7 @@ function renderPfdMaster(ctx, tel, w, h) {
   const tapeW = dw < 480 ? 46 : 52;
   const tapeLeftX = tapeW;
   const tapeTopY = 30;
-  const tapeHgt = Math.max(120, dh - 68);
+  const tapeHgt = Math.max(120, dh - 84); // bottom 54px reserved for GS/TAS, G-load and the nav strip
   const spdPxPerKt = tapeHgt / 55.0;
 
   // Selected Speed Bug Box at Top Left
@@ -4157,7 +4157,7 @@ function renderPfdMaster(ctx, tel, w, h) {
   ctx.fillText("KT", spdBoxX + spdBoxW - 2, cy + 7);
 
   // Ground Speed & True Airspeed Dual Box at the Bottom of Airspeed Column
-  const gsBoxY = Math.min(dh - 34, tapeTopY + tapeHgt + 2);
+  const gsBoxY = dh - 52;
   ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
   ctx.strokeStyle = "#374151";
   ctx.lineWidth = 1.0;
@@ -4189,8 +4189,8 @@ function renderPfdMaster(ctx, tel, w, h) {
     if (gVal >= 3.2 || gVal < 0.0) gColor = "#ff1744"; // Structural limit alert red
     else if (gVal >= 2.0 || gVal < 0.5) gColor = "#facc15"; // Caution yellow
 
-    const gBoxW = 76, gBoxH = 20;
-    const gBoxX = 54, gBoxY = dh - 46;
+    const gBoxW = 92, gBoxH = 20;
+    const gBoxX = tapeLeftX + 14, gBoxY = dh - 48;
 
     ctx.save();
     ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
@@ -4203,7 +4203,7 @@ function renderPfdMaster(ctx, tel, w, h) {
 
     // G-LOAD Tag
     ctx.fillStyle = "#00e5ff";
-    ctx.font = "bold 9px 'Share Tech Mono', monospace";
+    ctx.font = "bold 8px 'Share Tech Mono', monospace";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.fillText("G-LOAD", gBoxX + 5, gBoxY + gBoxH / 2);
@@ -4288,20 +4288,22 @@ function renderPfdMaster(ctx, tel, w, h) {
   ctx.lineTo(vsiX, cy - vsiDeflection);
   ctx.stroke();
 
-  ctx.fillStyle = "#00e5ff";
-  ctx.font = "bold 12px 'Share Tech Mono', monospace";
-  ctx.textAlign = "right";
-  ctx.fillText("29.92 IN", dw - 8, dh - 8);
-
-  // 7. MID NAVIGATION STATUS STRIP
+  // 7. MID NAVIGATION STATUS STRIP (source left, destination centre, QNH right)
   const stripY = dh - 6;
   ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
   ctx.fillRect(0, stripY - 14, dw, 20);
 
   ctx.font = "bold 12px 'Share Tech Mono', monospace";
-  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "#e040fb";
-  ctx.fillText(`GPS   o  ${tel.destDistanceNm.toFixed(1)} NM ➔   ${sim.destIdent} TERM`, cx, stripY);
+  ctx.textAlign = "left";
+  ctx.fillText("GPS", 8, stripY);
+  ctx.textAlign = "center";
+  ctx.fillText(`${tel.destDistanceNm.toFixed(1)} NM ➔ ${sim.destIdent}`, cx, stripY);
+
+  ctx.fillStyle = "#00e5ff";
+  ctx.textAlign = "right";
+  ctx.fillText(`QNH ${Math.round(tel.qnhHpa || 1013.25)}`, dw - 8, stripY);
 
   // 8. TURN COORDINATOR & INCLINOMETER GAUGE (If enabled in settings)
   if (showTurnCoordinator) {
@@ -4722,19 +4724,20 @@ function renderHsiMaster(ctx, tel, w, h) {
   ctx.font = "900 15px 'Share Tech Mono', monospace";
   ctx.fillText(`${tel.selectedHeadingBug.toString().padStart(3, "0")}°`, cx - 101, 28);
 
-  // Left Outside Telemetry Box (OAT & Wind)
+  // Left Outside Telemetry Box (OAT & Wind). No OAT or wind sensor feeds the HSI yet, so those
+  // read "--" rather than the fixed placeholder values that used to be shown.
   ctx.fillStyle = "rgba(9, 13, 22, 0.9)";
   ctx.strokeStyle = "#1f2937";
   ctx.lineWidth = 1.0;
-  ctx.fillRect(6, 4, 70, 44);
-  ctx.strokeRect(6, 4, 70, 44);
+  ctx.fillRect(6, 4, 66, 44);
+  ctx.strokeRect(6, 4, 66, 44);
   ctx.fillStyle = "#ffffff";
   ctx.font = "bold 10px 'Share Tech Mono', monospace";
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText("OAT  +18°C", 10, 17);
-  ctx.fillText("WIND  Calm", 10, 30);
-  ctx.fillText("TAS  112kt", 10, 43);
+  ctx.fillText("OAT   --", 10, 17);
+  ctx.fillText("WIND  --", 10, 30);
+  ctx.fillText(`TAS  ${Math.round(tel.trueAirspeed || 0)}kt`, 10, 43);
 
   // Right Selected Course Box
   ctx.fillStyle = "#090d16";
@@ -6810,6 +6813,7 @@ function bootEfisSuite() {
 let lastTime = performance.now();
 const MAP_OVERLAY_REFRESH_SEC = 0.5;
 let mapOverlayElapsedSec = MAP_OVERLAY_REFRESH_SEC;
+let lastAdsbTrackCount = -1;
 
 function mainLoop(now) {
   const dt = Math.min(0.05, Math.max(0.005, (now - lastTime) / 1000.0));
@@ -6884,8 +6888,9 @@ function mainLoop(now) {
   if (refreshMapOverlays) renderTrafficOnMap();
 
   const adsbStatusText = document.getElementById("adsb-status-text");
-  if (adsbStatusText) {
-    adsbStatusText.textContent = `ADS-B: ${trafficMgr.targets.size} TRK`;
+  if (adsbStatusText && lastAdsbTrackCount !== trafficMgr.targets.size) {
+    lastAdsbTrackCount = trafficMgr.targets.size;
+    adsbStatusText.textContent = `ADS-B ${lastAdsbTrackCount}`;
   }
 
   // Update Cockpit & PFD TCAS Traffic Warnings
@@ -7562,7 +7567,12 @@ function applyOrientationMode(index, announce = false) {
 
   const btnHeader = document.getElementById("btn-toggle-orientation");
   if (btnHeader) {
-    btnHeader.textContent = `⟲ ${currentMode.label}`;
+    btnHeader.textContent = "⟲ ";
+    const modeLabel = document.createElement("span");
+    modeLabel.className = "orientation-mode-label";
+    modeLabel.textContent = currentMode.label;
+    btnHeader.appendChild(modeLabel);
+    btnHeader.title = `Display mode: ${currentMode.label} (tap or long-press to cycle)`;
   }
 
   const btnCfg = document.getElementById("btn-cfg-orientation");
