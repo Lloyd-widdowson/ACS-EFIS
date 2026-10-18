@@ -1,5 +1,18 @@
 # ADS-B traffic relay
 
+## Recommended: Vercel
+
+Tested on 2026-10-18: adsb.lol, adsb.fi, airplanes.live and OpenSky all refuse requests coming from Cloudflare Workers (HTTP 403, 503 and 522). Vercel runs the same relay code from different servers.
+
+1. Sign in at https://vercel.com with your GitHub account. The free Hobby plan is enough.
+2. Click **Add New → Project**, import **ACS-EFIS**, leave every setting as it is, and click **Deploy**.
+3. When it finishes, open `https://<project>.vercel.app/api/adsb` in a browser. You should see aircraft JSON, or an error naming which network failed.
+4. In the app, open **Settings → Traffic Relay URL** and paste `https://<project>.vercel.app/api/adsb`.
+
+`api/adsb.mjs` is the Vercel route, and it reuses `relay/cloudflare-worker.js`. If you open the app from the Vercel address itself, it finds `/api/adsb` without any setting.
+
+## Cloudflare Worker (blocked by the networks today)
+
 GitHub Pages can't proxy requests, and the public ADS-B networks (adsb.lol, adsb.fi, airplanes.live) don't accept requests made directly from a browser on another site. Because of that, the app shows "ADS-B --" when it's hosted on Pages.
 
 `cloudflare-worker.js` is a tiny relay that fetches those networks for the app. It runs free on Cloudflare Workers; the free plan allows 100,000 requests a day, and the app makes about one request every 4 s while it's open.
