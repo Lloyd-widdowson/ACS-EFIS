@@ -5623,6 +5623,33 @@ function createBaseTileLayer(layerKey) {
 let currentTileLayer = null;
 let currentMapLayerKey = "dark";
 
+// Aero chart: OpenAIP's aeronautical overlay (airspace, airports, navaids) on the street base.
+// Needs the pilot's own free API key; OpenAIP's terms don't allow bulk offline download.
+const OPENAIP_TILE_URL = "https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey={apiKey}";
+let openAipOverlay = null;
+
+function getOpenAipKey() {
+  try { return (localStorage.getItem("efis_openaip_key") || "").trim(); } catch (e) { return ""; }
+}
+
+function refreshAeroOverlay() {
+  if (!leafletMap) return;
+  if (openAipOverlay) {
+    leafletMap.removeLayer(openAipOverlay);
+    openAipOverlay = null;
+  }
+  const key = getOpenAipKey();
+  if (currentMapLayerKey !== "vfr" || !key) return;
+  openAipOverlay = L.tileLayer(OPENAIP_TILE_URL, {
+    apiKey: encodeURIComponent(key),
+    maxZoom: 18,
+    maxNativeZoom: 14,
+    opacity: 1,
+    zIndex: 5,
+    attribution: '&copy; <a href="https://www.openaip.net">OpenAIP</a> (CC BY-NC 4.0)'
+  }).addTo(leafletMap);
+}
+
 // Base layers enabled for route pre-caching, kept to the small Dark Gray canvas for personal use.
 // OpenStreetMap and OpenTopoMap tile policies forbid bulk downloading and the Esri imagery is
 // far heavier, so those stay online-only.
@@ -7829,9 +7856,23 @@ document.querySelectorAll(".layer-btn").forEach(btn => {
       leafletMap.removeLayer(currentTileLayer);
       currentMapLayerKey = layerKey;
       currentTileLayer = createBaseTileLayer(layerKey).addTo(leafletMap);
+      refreshAeroOverlay();
+      if (layerKey === "vfr" && !getOpenAipKey()) {
+        alert("To see the aero chart, paste your free OpenAIP API key in Settings (openaip.net, profile, API keys). Until then this shows a plain street map.");
+      }
     }
   });
 });
+
+(() => {
+  const keyInput = document.getElementById("cfg-openaip-key");
+  if (!keyInput) return;
+  keyInput.value = getOpenAipKey();
+  keyInput.addEventListener("change", () => {
+    try { localStorage.setItem("efis_openaip_key", keyInput.value.trim()); } catch (e) { /* storage unavailable */ }
+    refreshAeroOverlay();
+  });
+})();
 
 // Offline Route Map Tiles (Settings)
 let offlineTileDownloadAbort = null;
