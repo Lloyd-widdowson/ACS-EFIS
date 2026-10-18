@@ -4945,62 +4945,77 @@ function renderHsiMaster(ctx, tel, w, h) {
   ctx.textBaseline = "middle";
   ctx.fillText(Math.round(tel.heading).toString().padStart(3, "0") + "°", cx, 21);
 
+  // Top row, left to right: OAT/WIND/TAS panel | HDG bug | heading | CRS bug | VS bug.
+  // Positions are packed from both edges so no box overlaps another on narrow phones.
+  const bugBoxH = 32, gap = 4;
+  const infoX = 6, infoW = 74, infoH = 44;
+  const vsW = 58, vsX = dw - 6 - vsW;
+  const hdgBugX = infoX + infoW + gap;
+  const hdgBugW = Math.max(44, Math.min(58, cx - hdgBoxW / 2 - gap - hdgBugX));
+  const crsX = cx + hdgBoxW / 2 + gap;
+  const crsW = Math.max(44, Math.min(58, vsX - gap - crsX));
+
   // Left Selected Heading Bug Box
-  const bugBoxW = 58, bugBoxH = 32;
   ctx.fillStyle = "#090d16";
   ctx.strokeStyle = "#00e5ff";
   ctx.lineWidth = 1.4;
-  ctx.fillRect(cx - 130, 5, bugBoxW, bugBoxH);
-  ctx.strokeRect(cx - 130, 5, bugBoxW, bugBoxH);
+  ctx.fillRect(hdgBugX, 5, hdgBugW, bugBoxH);
+  ctx.strokeRect(hdgBugX, 5, hdgBugW, bugBoxH);
 
   ctx.fillStyle = "#00e5ff";
   ctx.font = "bold 9px 'Share Tech Mono', monospace";
   ctx.textAlign = "center";
-  ctx.fillText("HDG", cx - 101, 14);
+  ctx.fillText("HDG", hdgBugX + hdgBugW / 2, 14);
   ctx.font = "900 15px 'Share Tech Mono', monospace";
-  ctx.fillText(`${tel.selectedHeadingBug.toString().padStart(3, "0")}°`, cx - 101, 28);
+  ctx.fillText(`${tel.selectedHeadingBug.toString().padStart(3, "0")}°`, hdgBugX + hdgBugW / 2, 28);
 
-  // Left Outside Telemetry Box (OAT & Wind). No OAT or wind sensor feeds the HSI yet, so those
-  // read "--" rather than the fixed placeholder values that used to be shown.
+  // Left Outside Air Panel: forecast OAT and wind at the aircraft's altitude, and TAS
+  // estimated from GPS ground speed minus that wind (no probes fitted). See WindsAloftService.
   ctx.fillStyle = "rgba(9, 13, 22, 0.9)";
-  ctx.strokeStyle = "#1f2937";
+  ctx.strokeStyle = "#374151";
   ctx.lineWidth = 1.0;
-  ctx.fillRect(6, 4, 66, 44);
-  ctx.strokeRect(6, 4, 66, 44);
-  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(infoX, 4, infoW, infoH);
+  ctx.strokeRect(infoX, 4, infoW, infoH);
   ctx.font = "bold 10px 'Share Tech Mono', monospace";
-  ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText("OAT   --", 10, 17);
-  ctx.fillText("WIND  --", 10, 30);
-  ctx.fillText(`TAS  ${Math.round(tel.trueAirspeed || 0)}kt`, 10, 43);
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#9ca3af";
+  ctx.fillText("OAT", infoX + 4, 17);
+  ctx.fillText("WIND", infoX + 4, 30);
+  ctx.fillText("TAS", infoX + 4, 43);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(windsAloft.oatText, infoX + infoW - 4, 17);
+  ctx.fillText(windsAloft.windText, infoX + infoW - 4, 30);
+  ctx.fillText(windsAloft.tasText, infoX + infoW - 4, 43);
+  ctx.textBaseline = "middle";
 
   // Right Selected Course Box
   ctx.fillStyle = "#090d16";
   ctx.strokeStyle = "#e040fb";
   ctx.lineWidth = 1.4;
-  ctx.fillRect(cx + 72, 5, bugBoxW, bugBoxH);
-  ctx.strokeRect(cx + 72, 5, bugBoxW, bugBoxH);
+  ctx.fillRect(crsX, 5, crsW, bugBoxH);
+  ctx.strokeRect(crsX, 5, crsW, bugBoxH);
 
   ctx.fillStyle = "#e040fb";
   ctx.font = "bold 9px 'Share Tech Mono', monospace";
   ctx.textAlign = "center";
-  ctx.fillText("CRS", cx + 101, 14);
+  ctx.fillText("CRS", crsX + crsW / 2, 14);
   ctx.font = "900 15px 'Share Tech Mono', monospace";
-  ctx.fillText(`${tel.selectedCourseBug.toString().padStart(3, "0")}°`, cx + 101, 28);
+  ctx.fillText(`${tel.selectedCourseBug.toString().padStart(3, "0")}°`, crsX + crsW / 2, 28);
 
   // Right Selected VS Box
   ctx.fillStyle = "#090d16";
   ctx.strokeStyle = "#00e5ff";
   ctx.lineWidth = 1.4;
-  ctx.fillRect(dw - 64, 5, bugBoxW, bugBoxH);
-  ctx.strokeRect(dw - 64, 5, bugBoxW, bugBoxH);
+  ctx.fillRect(vsX, 5, vsW, bugBoxH);
+  ctx.strokeRect(vsX, 5, vsW, bugBoxH);
 
   ctx.fillStyle = "#00e5ff";
   ctx.font = "bold 9px 'Share Tech Mono', monospace";
-  ctx.fillText("VS", dw - 35, 14);
+  ctx.fillText("VS", vsX + vsW / 2, 14);
   ctx.font = "900 15px 'Share Tech Mono', monospace";
-  ctx.fillText(`${tel.targetVsFpm}`, dw - 35, 28);
+  ctx.fillText(`${tel.targetVsFpm}`, vsX + vsW / 2, 28);
 
   // 8. BOTTOM NAVIGATION DATA STRIP
   const botY = dh - 4;
@@ -5078,6 +5093,129 @@ function renderTelemetryChart(ctx, w, h) {
 // ============================================================================
 // 6.5 REAL-TIME AVIATION WEATHER OVERLAY SERVICE & RAINVIEWER RADAR CONTROLLER
 // ============================================================================
+// ============================================================================
+// FORECAST OAT, WIND & ESTIMATED TAS (no probes: Open-Meteo model data at the aircraft's altitude)
+// ============================================================================
+const WINDS_ALOFT_LEVELS_HPA = [1000, 925, 850, 700, 600, 500];
+
+class WindsAloftService {
+  constructor() {
+    this.profile = null;        // [{ hFt, tempC, u, v }] sorted by height, wind components in kt (toward)
+    this.fetchedAt = 0;
+    this.fetchLat = null;
+    this.fetchLon = null;
+    this.isFetching = false;
+    // Strings for the HSI panel, rebuilt once a second so the draw loop does no formatting
+    this.oatText = "--";
+    this.windText = "--";
+    this.tasText = "--";
+  }
+
+  needsRefresh(lat, lon, now) {
+    if (this.isFetching) return false;
+    if (!this.profile) return now - this.fetchedAt > 60000 || this.fetchedAt === 0;
+    if (now - this.fetchedAt > 15 * 60000) return true;
+    return calculateDistanceNm(lat, lon, this.fetchLat, this.fetchLon) > 25;
+  }
+
+  async refresh(lat, lon) {
+    this.isFetching = true;
+    this.fetchedAt = Date.now();
+    try {
+      const vars = ["temperature_2m", "wind_speed_10m", "wind_direction_10m"];
+      WINDS_ALOFT_LEVELS_HPA.forEach(l => vars.push(`temperature_${l}hPa`, `wind_speed_${l}hPa`, `wind_direction_${l}hPa`, `geopotential_height_${l}hPa`));
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lon.toFixed(3)}` +
+        `&hourly=${vars.join(",")}&wind_speed_unit=kn&forecast_days=1&timezone=GMT`;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      const resp = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const h = data.hourly;
+      const nowIso = new Date().toISOString().slice(0, 13); // "YYYY-MM-DDTHH"
+      let idx = h.time.findIndex(t => t.slice(0, 13) === nowIso);
+      if (idx < 0) idx = 0;
+      const toUv = (dirFrom, kt) => {
+        const r = (dirFrom + 180) * Math.PI / 180; // vector the air moves toward
+        return { u: kt * Math.sin(r), v: kt * Math.cos(r) };
+      };
+      const levels = [];
+      const surfFt = (data.elevation || 0) * 3.28084;
+      if (h.temperature_2m && h.temperature_2m[idx] !== null) {
+        levels.push({ hFt: surfFt, tempC: h.temperature_2m[idx], ...toUv(h.wind_direction_10m[idx], h.wind_speed_10m[idx]) });
+      }
+      WINDS_ALOFT_LEVELS_HPA.forEach(l => {
+        const z = h[`geopotential_height_${l}hPa`] && h[`geopotential_height_${l}hPa`][idx];
+        const t = h[`temperature_${l}hPa`] && h[`temperature_${l}hPa`][idx];
+        const ws = h[`wind_speed_${l}hPa`] && h[`wind_speed_${l}hPa`][idx];
+        const wd = h[`wind_direction_${l}hPa`] && h[`wind_direction_${l}hPa`][idx];
+        if ([z, t, ws, wd].some(x => x === null || x === undefined)) return;
+        const hFt = z * 3.28084;
+        if (hFt <= surfFt) return; // pressure level below ground here
+        levels.push({ hFt, tempC: t, ...toUv(wd, ws) });
+      });
+      levels.sort((a, b) => a.hFt - b.hFt);
+      if (levels.length) {
+        this.profile = levels;
+        this.fetchLat = lat;
+        this.fetchLon = lon;
+      }
+    } catch (e) {
+      console.warn("Winds aloft unavailable:", e.message);
+    } finally {
+      this.isFetching = false;
+    }
+  }
+
+  // Linear interpolation of temperature and wind (as u/v) at an altitude in feet
+  sampleAt(altFt) {
+    const p = this.profile;
+    if (!p || !p.length) return null;
+    if (altFt <= p[0].hFt) return p[0];
+    if (altFt >= p[p.length - 1].hFt) return p[p.length - 1];
+    for (let i = 1; i < p.length; i++) {
+      if (altFt <= p[i].hFt) {
+        const a = p[i - 1], b = p[i];
+        const f = (altFt - a.hFt) / (b.hFt - a.hFt);
+        return { hFt: altFt, tempC: a.tempC + (b.tempC - a.tempC) * f, u: a.u + (b.u - a.u) * f, v: a.v + (b.v - a.v) * f };
+      }
+    }
+    return p[p.length - 1];
+  }
+
+  // Called once a second with the latest telemetry.
+  update(tel, isLive) {
+    const now = Date.now();
+    if (isFinite(tel.latitude) && isFinite(tel.longitude) && this.needsRefresh(tel.latitude, tel.longitude, now)) {
+      this.refresh(tel.latitude, tel.longitude);
+    }
+    const w = this.sampleAt(tel.indicatedAltitude || 0);
+    if (!w) {
+      this.oatText = "--";
+      this.windText = "--";
+    } else {
+      this.oatText = `${Math.round(w.tempC)}°C`;
+      const spd = Math.hypot(w.u, w.v);
+      const from = (Math.round(Math.atan2(w.u, w.v) * 180 / Math.PI) + 180 + 360) % 360;
+      this.windText = spd < 1 ? "CALM" : `${String(from || 360).padStart(3, "0")}/${Math.round(spd)}`;
+    }
+    if (!isLive) {
+      this.tasText = `${Math.round(tel.trueAirspeed || 0)}kt`;
+    } else if (w && tel.groundSpeed >= 30) {
+      // No pitot: air velocity = ground velocity minus the forecast wind
+      const trk = (tel.groundTrack || 0) * Math.PI / 180;
+      const ax = tel.groundSpeed * Math.sin(trk) - w.u;
+      const ay = tel.groundSpeed * Math.cos(trk) - w.v;
+      this.tasText = `≈${Math.round(Math.hypot(ax, ay))}kt`;
+    } else {
+      this.tasText = "--";
+    }
+  }
+}
+
+const windsAloft = new WindsAloftService();
+
 class WeatherOverlayService {
   constructor() {
     this.showRadar = localStorage.getItem("efis_show_weather_radar") !== "false";
@@ -7351,6 +7489,7 @@ let lastTime = performance.now();
 const MAP_OVERLAY_REFRESH_SEC = 0.5;
 let mapOverlayElapsedSec = MAP_OVERLAY_REFRESH_SEC;
 let lastAdsbTrackCount = null;
+let lastWindsAloftUpdate = -Infinity;
 
 function mainLoop(now) {
   const dt = Math.min(0.05, Math.max(0.005, (now - lastTime) / 1000.0));
@@ -7358,6 +7497,12 @@ function mainLoop(now) {
 
   const tel = deviceSensors.getTelemetry(dt);
   const renderTel = uiInterpolator.update(tel, dt);
+
+  // Forecast OAT / wind / estimated TAS for the HSI panel, once a second
+  if (now - lastWindsAloftUpdate >= 1000) {
+    lastWindsAloftUpdate = now;
+    windsAloft.update(tel, deviceSensors.useLiveSensors);
+  }
 
   // Blackbox auto-recording
   if (tel.groundSpeed > 20 && !recorder.isRecording) {
