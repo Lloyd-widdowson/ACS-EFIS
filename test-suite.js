@@ -784,6 +784,49 @@ function runAllTests() {
   );
 
   // --------------------------------------------------------------------------
+  // Test 30b: Live Sensor Filter Seeding & Turn Rate Derivation
+  // --------------------------------------------------------------------------
+  let channelSeedOk = false;
+  let liveTurnRateOk = false;
+  let wrapTurnRateOk = false;
+  let stationaryTurnZeroOk = false;
+  let measuredTurnRate = 0;
+  if (typeof AhrsSensorFilter === 'function' && typeof deviceSensors !== 'undefined') {
+    // Each filter channel must seed from its own first sample (a G sample must not consume heading's)
+    const seedFilter = new AhrsSensorFilter();
+    seedFilter.filterGForce(1.3);
+    channelSeedOk = seedFilter.filterHeading(90.0) === 90.0 && seedFilter.filterPitch(5.0) === 5.0;
+
+    const saved = {
+      useLiveSensors: deviceSensors.useLiveSensors, liveSpeedKt: deviceSensors.liveSpeedKt,
+      liveHeadingDeg: deviceSensors.liveHeadingDeg, turnRateDegPerSec: deviceSensors.turnRateDegPerSec,
+      lastTurnHeadingDeg: deviceSensors.lastTurnHeadingDeg
+    };
+    const runTurn = (startHdg, rateDegPerSec, speedKt) => {
+      deviceSensors.useLiveSensors = true;
+      deviceSensors.liveSpeedKt = speedKt;
+      deviceSensors.lastTurnHeadingDeg = null;
+      deviceSensors.turnRateDegPerSec = 0;
+      let tel = null;
+      for (let i = 0; i < 60; i++) {
+        deviceSensors.liveHeadingDeg = (startHdg + rateDegPerSec * 0.1 * i + 360) % 360;
+        tel = deviceSensors.getTelemetry(0.1);
+      }
+      return tel.turnRateDegPerSec;
+    };
+    measuredTurnRate = runTurn(100, 3.0, 90);
+    liveTurnRateOk = Math.abs(measuredTurnRate - 3.0) < 0.3;
+    wrapTurnRateOk = Math.abs(runTurn(355, -3.0, 90) + 3.0) < 0.3 && Math.abs(runTurn(355, 3.0, 90) - 3.0) < 0.3;
+    stationaryTurnZeroOk = runTurn(100, 3.0, 1.0) === 0;
+    Object.assign(deviceSensors, saved);
+  }
+  assert(
+    "Live Sensor Filter Seeding & Turn Rate Derivation (Shortest-Arc, Stationary Zero)",
+    channelSeedOk && liveTurnRateOk && wrapTurnRateOk && stationaryTurnZeroOk,
+    `ChannelSeed=${channelSeedOk}, TurnRate=${measuredTurnRate.toFixed(2)}°/s (Expected 3.00), WrapAround=${wrapTurnRateOk}, StationaryZero=${stationaryTurnZeroOk}`
+  );
+
+  // --------------------------------------------------------------------------
   // Test 31: Flight Plan Route Lock Toggle, Tap Protection & Map HUD Synchronization
   // --------------------------------------------------------------------------
   const hasRouteLockState = typeof isRouteLocked !== 'undefined';
@@ -926,7 +969,7 @@ function runAllTests() {
   summary.style.borderTop = "1px solid #1e293b";
   summary.style.fontWeight = "bold";
   summary.style.color = passCount === results.length ? "#00e676" : "#ff1744";
-  summary.textContent = `TOTAL: ${passCount} / ${results.length} Tests Passed (100% Success Rate)`;
+  summary.textContent = `TOTAL: ${passCount} / ${results.length} Tests Passed (${Math.round((passCount / results.length) * 100)}% Success Rate)`;
   container.appendChild(summary);
 }
 
