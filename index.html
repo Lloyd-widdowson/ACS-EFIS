@@ -47,14 +47,14 @@
 </head>
 <body class="portrait-mode">
   <!-- Startup Safety Disclaimer (must be accepted on every launch) -->
-  <div id="startup-disclaimer" class="startup-disclaimer" role="dialog" aria-modal="true" aria-labelledby="startup-disclaimer-title">
-    <div class="startup-disclaimer-card">
-      <h2 id="startup-disclaimer-title">⚠️ NOT FOR REAL AVIATION USE</h2>
+  <div id="startup-disclaimer" class="startup-disclaimer" style="position:fixed; inset:0; z-index:100000; display:flex; align-items:center; justify-content:center; padding:16px; background:rgba(3,6,12,0.94);" role="dialog" aria-modal="true" aria-labelledby="startup-disclaimer-title">
+    <div class="startup-disclaimer-card" style="max-width:460px; width:100%; max-height:100%; overflow-y:auto; background:#0b1220; border:2px solid #ff1744; border-radius:12px; padding:20px; color:#e2e8f0; font-size:14px; line-height:1.45;">
+      <h2 id="startup-disclaimer-title" style="margin:0 0 12px; color:#ff1744; font-size:20px;">⚠️ NOT FOR REAL AVIATION USE</h2>
       <p><strong>ACS EFIS &amp; FMS is experimental hobbyist software.</strong> It is not certified or approved by the FAA, CASA, EASA or any other aviation authority.</p>
       <p>Do not use it as a primary or secondary flight instrument, or rely on it for navigation, terrain clearance, traffic avoidance, airspace avoidance or any in-flight decision. Sensor, GPS, map and traffic data may be inaccurate, delayed or fail without warning.</p>
       <p>By continuing you accept that you use this app entirely at your own risk.</p>
-      <button id="btn-accept-disclaimer" class="startup-disclaimer-btn">I UNDERSTAND &amp; ACCEPT</button>
-      <div class="startup-disclaimer-version">v3.3.0</div>
+      <button id="btn-accept-disclaimer" class="startup-disclaimer-btn" type="button" onclick="document.getElementById('startup-disclaimer').style.display='none';" style="width:100%; margin-top:8px; padding:14px; border:none; border-radius:8px; background:#ff1744; color:#fff; font-size:16px; font-weight:700; cursor:pointer;">I UNDERSTAND &amp; ACCEPT</button>
+      <div class="startup-disclaimer-version" style="margin-top:10px; text-align:center; font-size:11px; color:#64748b;">v3.3.1</div>
     </div>
   </div>
 
@@ -908,7 +908,7 @@
               <img src="icon-192.png" alt="ACS EFIS & FMS" style="width:64px; height:64px; border-radius:12px; border:2px solid #00e5ff; background:#fff; object-fit:contain; padding:2px; flex-shrink:0;">
               <div>
                 <h3 style="margin:0 0 4px 0; color:#fff; font-size:16px;">ACS EFIS &amp; FMS</h3>
-                <div style="font-size:11px; color:#00e5ff; font-weight:600;">Next-Gen Glass Cockpit Suite v3.3.0</div>
+                <div style="font-size:11px; color:#00e5ff; font-weight:600;">Next-Gen Glass Cockpit Suite v3.3.1</div>
                 <div style="font-size:10px; color:#9ca3af; margin-top:2px;">Australian VNC/VTC AIRAC • ADS-B In • AHRS Sensor Fusion</div>
               </div>
             </div>

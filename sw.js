@@ -1,4 +1,4 @@
-const CACHE_NAME = 'efis-suite-v6';
+const CACHE_NAME = 'efis-suite-v7';
 const ASSETS = [
   './',
   './index.html',
@@ -23,7 +23,8 @@ const ASSETS = [
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(ASSETS).catch(err => console.warn('PWA Cache addAll warning:', err));
+      // cache: 'reload' bypasses the browser HTTP cache so a new version never precaches stale files
+      return cache.addAll(ASSETS.map(url => new Request(url, { cache: 'reload' }))).catch(err => console.warn('PWA Cache addAll warning:', err));
     })
   );
   self.skipWaiting();
@@ -43,9 +44,12 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
 
-  // Network-First with Cache Fallback for instantaneous updates on reload
+  // Network-First with Cache Fallback for instantaneous updates on reload. App files are
+  // revalidated with the server ('no-cache') so GitHub Pages' 10-minute HTTP cache can't
+  // serve old CSS/JS alongside a new index.html.
+  const sameOrigin = new URL(e.request.url).origin === self.location.origin;
   e.respondWith(
-    fetch(e.request)
+    fetch(sameOrigin ? new Request(e.request, { cache: 'no-cache' }) : e.request)
       .then(response => {
         if (response && response.status === 200) {
           const responseToCache = response.clone();
