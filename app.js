@@ -2643,6 +2643,13 @@ class FlightSimEngine {
     this.selectedCourseBug = 250;    // CRS 250°
     this.targetVsFpm = 600;          // VS 600
 
+    // Attitude is now measured relative to the mount (see computeMountAttitude); offsets saved by
+    // the old flat-phone model would tilt the horizon, so drop them once.
+    if (localStorage.getItem("efis_attitude_model") !== "mount-v2") {
+      localStorage.removeItem("efis_pitch_offset");
+      localStorage.removeItem("efis_roll_offset");
+      localStorage.setItem("efis_attitude_model", "mount-v2");
+    }
     const savedPitchOffset = localStorage.getItem("efis_pitch_offset");
     const savedRollOffset = localStorage.getItem("efis_roll_offset");
     this.pitchOffset = (savedPitchOffset !== null && !isNaN(parseFloat(savedPitchOffset))) ? parseFloat(savedPitchOffset) : 0.0;
@@ -2958,6 +2965,18 @@ class DeviceSensorBridge {
     this.liveHeadingDeg = 0;
     this.livePitchDeg = 0.0;
     this.liveRollDeg = 0.0;
+    // Mount reference: the phone's "level" up-axis in device coordinates. Saved by calibration,
+    // otherwise picked from the first reading (upright mount vs lying flat).
+    this.lastUpVec = null;
+    this.mountUpVec = null;
+    this.mountUpAuto = true;
+    try {
+      const savedMount = JSON.parse(localStorage.getItem("efis_mount_up_vec") || "null");
+      if (Array.isArray(savedMount) && savedMount.length === 3 && savedMount.every(n => typeof n === "number" && isFinite(n))) {
+        this.mountUpVec = savedMount;
+        this.mountUpAuto = false;
+      }
+    } catch (e) {}
     this.liveGForce = 1.0;
     this.liveVsFpm = 0.0;
     this.pressureHpa = 1013.25;
@@ -3077,7 +3096,73 @@ class DeviceSensorBridge {
     return { rawPitch, rawRoll, rawHdg, angle };
   }
 
+  // Pitch and roll relative to how the phone is mounted, from the full orientation instead of
+  // raw beta/gamma. Raw beta folds at 90° (phone upright), which pinned the horizon in a dash mount.
+  computeMountAttitude(beta, gamma) {
+    const d2r = Math.PI / 180;
+    const b = (beta !== null && !isNaN(beta)) ? Number(beta) * d2r : 0;
+    const g = (gamma !== null && !isNaN(gamma)) ? Number(gamma) * d2r : 0;
+    // World "up" expressed in device axes (x right edge, y top edge, z out of the screen), W3C Z-X'-Y''.
+    const ux = -Math.sin(g) * Math.cos(b);
+    const uy = Math.sin(b);
+    const uz = Math.cos(g) * Math.cos(b);
+    this.lastUpVec = [ux, uy, uz];
+
+    const angle = this.getEffectiveSensorAngle();
+    // Screen-right and screen-up directions in device axes for the current display rotation.
+    const screenRight = angle === 90 ? [0, -1, 0] : angle === 270 ? [0, 1, 0] : angle === 180 ? [-1, 0, 0] : [1, 0, 0];
+    const screenUp = angle === 90 ? [1, 0, 0] : angle === 270 ? [-1, 0, 0] : angle === 180 ? [0, -1, 0] : [0, 1, 0];
+
+    if (!this.mountUpVec) {
+      // More than ~45° from flat means an upright (dash) mount: level = screen facing the pilot.
+      this.mountUpVec = Math.abs(uz) < 0.7 ? screenUp : [0, 0, 1];
+      this.mountUpAuto = true;
+    }
+    const up = this.mountUpVec;
+    // Right axis = screen-right made perpendicular to the mount's up; forward = up x right.
+    const k = screenRight[0] * up[0] + screenRight[1] * up[1] + screenRight[2] * up[2];
+    let rx = screenRight[0] - k * up[0], ry = screenRight[1] - k * up[1], rz = screenRight[2] - k * up[2];
+    const rn = Math.hypot(rx, ry, rz) || 1;
+    rx /= rn; ry /= rn; rz /= rn;
+    const fx = up[1] * rz - up[2] * ry;
+    const fy = up[2] * rx - up[0] * rz;
+    const fz = up[0] * ry - up[1] * rx;
+
+    const uF = ux * fx + uy * fy + uz * fz;
+    const uR = ux * rx + uy * ry + uz * rz;
+    const uU = ux * up[0] + uy * up[1] + uz * up[2];
+    const pitch = Math.asin(Math.max(-1, Math.min(1, uF))) / d2r;
+    const roll = Math.atan2(-uR, uU) / d2r;
+    return {
+      pitch: Math.max(-60, Math.min(60, pitch)),
+      roll: Math.max(-85, Math.min(85, roll))
+    };
+  }
+
+  // Make the phone's current attitude the level reference for its mount. Returns false without a reading.
+  captureMountReference() {
+    if (!this.lastUpVec) return false;
+    const [x, y, z] = this.lastUpVec;
+    const n = Math.hypot(x, y, z) || 1;
+    this.mountUpVec = [x / n, y / n, z / n];
+    this.mountUpAuto = false;
+    localStorage.setItem("efis_mount_up_vec", JSON.stringify(this.mountUpVec));
+    if (typeof ahrsFilter !== 'undefined' && ahrsFilter) ahrsFilter.reset();
+    this.livePitchDeg = 0.0;
+    this.liveRollDeg = 0.0;
+    sim.pitchDeg = 0.0;
+    sim.rollDeg = 0.0;
+    return true;
+  }
+
+  clearMountReference() {
+    this.mountUpVec = null;
+    this.mountUpAuto = true;
+    localStorage.removeItem("efis_mount_up_vec");
+  }
+
   handleOrientationChange() {
+    if (this.mountUpAuto) this.mountUpVec = null;
     this.currentScreenAngle = this.getEffectiveSensorAngle();
     if (typeof ahrsFilter !== 'undefined' && ahrsFilter) {
       ahrsFilter.reset();
@@ -3244,10 +3329,11 @@ class DeviceSensorBridge {
       this.boundOrientationHandler = (e) => {
         if (e.beta !== null && e.gamma !== null) {
           this.hasAhrsFix = true;
-          const { rawPitch, rawRoll, rawHdg } = this.transformDeviceOrientationToAttitude(e.alpha, e.beta, e.gamma);
+          const { rawHdg } = this.transformDeviceOrientationToAttitude(e.alpha, e.beta, e.gamma);
+          const mountAtt = this.computeMountAttitude(e.beta, e.gamma);
 
-          this.livePitchDeg = ahrsFilter.filterPitch(rawPitch);
-          this.liveRollDeg = ahrsFilter.filterRoll(rawRoll);
+          this.livePitchDeg = ahrsFilter.filterPitch(mountAtt.pitch);
+          this.liveRollDeg = ahrsFilter.filterRoll(mountAtt.roll);
           sim.pitchDeg = this.livePitchDeg;
           sim.rollDeg = this.liveRollDeg;
 
@@ -7864,6 +7950,7 @@ class AhrsCalibrationManager {
     const btnResetOffsets = document.getElementById("btn-cal-reset-offsets");
     if (btnResetOffsets) {
       btnResetOffsets.addEventListener("click", () => {
+        deviceSensors.clearMountReference();
         this.resetCalibration();
       });
     }
@@ -7896,6 +7983,7 @@ class AhrsCalibrationManager {
     }
 
     if (elapsed >= this.calDurationMs) {
+      if (deviceSensors.useLiveSensors) deviceSensors.captureMountReference();
       this.completeCalibration();
       return;
     }
@@ -8331,6 +8419,7 @@ document.getElementById("btn-export-csv")?.addEventListener("click", () => {
 });
 
 document.getElementById("btn-cal-zero-level")?.addEventListener("click", () => {
+  if (deviceSensors.useLiveSensors) deviceSensors.captureMountReference();
   sim.pitchOffset = sim.pitchDeg;
   sim.rollOffset = sim.rollDeg;
   const calPitch = document.getElementById("cal-pitch-val");
