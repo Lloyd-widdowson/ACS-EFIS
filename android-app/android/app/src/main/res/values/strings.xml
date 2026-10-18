@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ACS EFIS</string>
+    <string name="title_activity_main">ACS EFIS</string>
+    <string name="package_name">au.com.altitudecs.efis</string>
+    <string name="custom_url_scheme">au.com.altitudecs.efis</string>
+</resources>

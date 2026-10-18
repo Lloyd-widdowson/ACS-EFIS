@@ -1,0 +1,15 @@
+{
+  "name": "acs-efis-android",
+  "private": true,
+  "description": "Android shell for the ACS EFIS web app. The app itself stays plain HTML/JS on GitHub Pages.",
+  "scripts": {
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

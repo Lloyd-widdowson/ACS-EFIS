@@ -1968,6 +1968,26 @@ function getAdsbRelayUrl() {
   }
 }
 
+// True inside the Android app (Capacitor shell in android-app/). Its native HTTP isn't subject to
+// browser CORS, so it can read the ADS-B networks directly from the phone's own connection.
+function isNativeApp() {
+  try {
+    return !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform());
+  } catch (e) {
+    return false;
+  }
+}
+
+async function nativeGetJson(url, timeoutMs) {
+  const options = { url, method: "GET", headers: { Accept: "application/json" }, responseType: "json", connectTimeout: timeoutMs, readTimeout: timeoutMs };
+  const cap = window.Capacitor;
+  const resp = (cap.Plugins && cap.Plugins.CapacitorHttp)
+    ? await cap.Plugins.CapacitorHttp.request(options)
+    : await cap.nativePromise("CapacitorHttp", "request", options);
+  if (resp.status < 200 || resp.status >= 300) throw new Error(`HTTP ${resp.status}`);
+  return typeof resp.data === "string" ? JSON.parse(resp.data) : resp.data;
+}
+
 class TrafficManager {
   constructor() {
     this.targets = new Map();
@@ -2179,12 +2199,13 @@ class TrafficManager {
     // OpenSky: keep the box under 25 square degrees (1 credit) and poll it slowly, anonymous access is 400 credits/day
     const boxDeg = 2.4;
     const list = [];
-    const relay = getAdsbRelayUrl();
+    const native = isNativeApp();
+    const relay = native ? "" : getAdsbRelayUrl();
     if (relay) {
       // The relay asks several networks itself, so give it longer and retry it sooner
       list.push({ name: "Relay", url: `${relay}${relay.includes("?") ? "&" : "?"}lat=${lat}&lon=${lon}&dist=${radiusNm}`, type: "adsb_v2", timeoutMs: 25000, backoffMs: 20000 });
     }
-    if (origin) {
+    if (origin && !native) {
       list.push({ name: "Local Proxy", url: `${origin}/api/adsb?lat=${lat}&lon=${lon}&dist=${radiusNm}`, type: "adsb_v2" });
     }
     list.push(
@@ -2221,16 +2242,21 @@ class TrafficManager {
         if (candidate.minIntervalMs && now - (this.sourceLastFetch[candidate.name] || 0) < candidate.minIntervalMs) continue;
         this.sourceLastFetch[candidate.name] = now;
         try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), candidate.timeoutMs || 4000);
-          const resp = await fetch(candidate.url, { signal: controller.signal, cache: "no-store" });
-          clearTimeout(timeoutId);
-          if (!resp.ok) {
-            let detail = "";
-            try { const body = await resp.json(); detail = body && body.error ? `: ${body.error}` : ""; } catch (e) { /* not JSON */ }
-            throw new Error(`HTTP ${resp.status}${detail}`);
+          let data;
+          if (isNativeApp()) {
+            data = await nativeGetJson(candidate.url, candidate.timeoutMs || 6000);
+          } else {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), candidate.timeoutMs || 4000);
+            const resp = await fetch(candidate.url, { signal: controller.signal, cache: "no-store" });
+            clearTimeout(timeoutId);
+            if (!resp.ok) {
+              let detail = "";
+              try { const body = await resp.json(); detail = body && body.error ? `: ${body.error}` : ""; } catch (e) { /* not JSON */ }
+              throw new Error(`HTTP ${resp.status}${detail}`);
+            }
+            data = await resp.json();
           }
-          const data = await resp.json();
 
           let planes = null;
           if (candidate.type === "adsb_v2" && data && Array.isArray(data.ac)) {

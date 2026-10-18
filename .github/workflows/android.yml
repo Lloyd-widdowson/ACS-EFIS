@@ -1,0 +1,56 @@
+# Builds the Android app (android-app/) and publishes the install file as the
+# "android-latest" GitHub release, so it can be downloaded straight to a phone.
+name: Android app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android-app/**"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install Capacitor
+        working-directory: android-app
+        run: npm ci
+
+      - name: Sync Capacitor config into the Android project
+        working-directory: android-app
+        run: npx cap sync android
+
+      - name: Build the install file (APK)
+        working-directory: android-app/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Publish as the android-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android-app/android/app/build/outputs/apk/debug/app-debug.apk ACS-EFIS.apk
+          gh release delete android-latest --yes --cleanup-tag || true
+          gh release create android-latest ACS-EFIS.apk \
+            --title "ACS EFIS Android app (build ${{ github.run_number }})" \
+            --notes "Download ACS-EFIS.apk on your Android phone and open it to install. The app loads https://lloyd-widdowson.github.io/ACS-EFIS/, so app updates still arrive automatically; only changes to the Android shell need a new install. Experimental hobbyist software, not for real aviation use." \
+            --latest

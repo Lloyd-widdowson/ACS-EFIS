@@ -13,3 +13,8 @@ This software is an uncertified, open-source experimental software project devel
 By downloading, compiling, modifying, running, or distributing this software, you explicitly acknowledge and agree that **YOU ASSUME ALL RISKS** associated with its use. 
 
 **THE AUTHORS, MAINTAINERS, AND CONTRIBUTORS ASSUME ABSOLUTELY ZERO LIABILITY OR RESPONSIBILITY** for any direct, indirect, incidental, punitive, consequential, or catastrophic damages—including but not limited to aircraft damage, regulatory violations, airspace infringements, personal injury, or loss of life—arising directly or indirectly from the installation, operation, or reliance upon this software.
+## Android app
+
+`android-app/` is a thin Capacitor shell that opens the hosted app (https://lloyd-widdowson.github.io/ACS-EFIS/), so web updates keep arriving without reinstalling. Inside the shell, live ADS-B traffic is fetched through native HTTP from the phone's own connection. This is needed because the public ADS-B networks refuse browser (CORS) requests from GitHub Pages, and refuse server relays on Cloudflare as well.
+
+The **Android app** GitHub Action builds `ACS-EFIS.apk` on every change under `android-app/` and publishes it as the `android-latest` release. To install it, open https://github.com/Lloyd-widdowson/ACS-EFIS/releases/tag/android-latest on the phone, download the APK, and allow installs from that source. The web app itself still has no build step.
