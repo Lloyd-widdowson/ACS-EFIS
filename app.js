@@ -4355,8 +4355,13 @@ function renderPfdMaster(ctx, tel, w, h) {
     if (gVal >= 3.2 || gVal < 0.0) gColor = "#ff1744"; // Structural limit alert red
     else if (gVal >= 2.0 || gVal < 0.5) gColor = "#facc15"; // Caution yellow
 
-    const gBoxW = 92, gBoxH = 20;
-    const gBoxX = tapeLeftX + 14, gBoxY = dh - 48;
+    // Fit between the left tape and the turn coordinator (same scale/position as section 8);
+    // on narrow screens drop the " G" unit so the readout stays clear of the gauge.
+    const gBoxH = 20, gBoxY = dh - 48;
+    const gBoxX = tapeLeftX + 12;
+    const tcLeftEdge = showTurnCoordinator ? cx - 58 * (dw < 450 ? 0.78 : 0.88) - 6 : dw;
+    const gBoxW = Math.max(64, Math.min(92, tcLeftEdge - gBoxX));
+    const gDisplay = gBoxW < 88 ? gText.replace(" G", "") : gText;
 
     ctx.save();
     ctx.fillStyle = "rgba(0, 0, 0, 0.88)";
@@ -4372,13 +4377,13 @@ function renderPfdMaster(ctx, tel, w, h) {
     ctx.font = "bold 8px 'Share Tech Mono', monospace";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText("G-LOAD", gBoxX + 5, gBoxY + gBoxH / 2);
+    ctx.fillText(gBoxW < 80 ? "G" : "G-LOAD", gBoxX + 5, gBoxY + gBoxH / 2);
 
     // Live Numeric G Readout
     ctx.fillStyle = gColor;
     ctx.font = "bold 13px 'Share Tech Mono', monospace";
     ctx.textAlign = "right";
-    ctx.fillText(gText, gBoxX + gBoxW - 5, gBoxY + gBoxH / 2);
+    ctx.fillText(gDisplay, gBoxX + gBoxW - 5, gBoxY + gBoxH / 2);
     ctx.restore();
   }
 
