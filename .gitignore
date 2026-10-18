@@ -1,7 +1,18 @@
 # Backup directories
 backup_stable_v1/
 backup_stable_v2/
+
+# Temporary and build artifacts
+node_modules/
+.venv/
+venv/
+dist/
+build/
+.cache/
 *.log
 *.tmp
+*.zip
 .DS_Store
 Thumbs.db
+.env
+.env.local
