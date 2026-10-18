@@ -3294,7 +3294,12 @@ class DeviceSensorBridge {
     }
     this.lastTurnHeadingDeg = this.liveHeadingDeg;
     const turnRate = Math.abs(this.turnRateDegPerSec) > 0.1 ? this.turnRateDegPerSec : 0.0;
-    const slipVal = (this.liveGForce > 0) ? (Math.sin(this.liveRollDeg * Math.PI / 180) * 0.2) : 0.0;
+    // Inclinometer ball: lateral specific force in g. Gravity pulls it to the low wing; the
+    // centripetal acceleration of a turn (V * omega / g) pulls it back, so a coordinated turn centres it.
+    const rollRad = (this.liveRollDeg - sim.rollOffset) * Math.PI / 180;
+    const turnAccelG = (this.liveSpeedKt * 0.514444) * (turnRate * Math.PI / 180) / 9.80665;
+    const lateralG = Math.sin(rollRad) - turnAccelG * Math.cos(rollRad);
+    const slipVal = Math.max(-1.5, Math.min(1.5, lateralG * 6.0));
 
     return {
       pitch: this.livePitchDeg - sim.pitchOffset,
@@ -3716,8 +3721,15 @@ function renderTurnCoordinator(ctx, tel, cx, cy, scale = 0.85) {
   ctx.stroke();
 
   // 3. Rotating Miniature Airplane Silhouette (Crisp & Proportionate)
-  // Bank angle proportional to Rate of Turn (deg/sec)
-  const airplaneBankDeg = Math.max(-30, Math.min(30, (tel.turnRateDegPerSec / 3.0) * 18.0));
+  // Banks with rate of turn: a standard-rate turn (3 deg/s) puts the wingtip on the index mark.
+  // With no measured turn (stationary, or GPS track not yet changing) it shows the rate a
+  // coordinated turn at the current bank would give, so tilting the device banks the airplane.
+  let tcRateDegPerSec = tel.turnRateDegPerSec;
+  if (Math.abs(tcRateDegPerSec) < 0.1 && typeof tel.roll === 'number') {
+    const tcSpeedKt = Math.max(90, tel.trueAirspeed || 0);
+    tcRateDegPerSec = 1091 * Math.tan(Math.max(-60, Math.min(60, tel.roll)) * Math.PI / 180) / tcSpeedKt;
+  }
+  const airplaneBankDeg = Math.max(-30, Math.min(30, (tcRateDegPerSec / 3.0) * 18.0));
   ctx.save();
   ctx.translate(0, levelY);
   ctx.rotate(airplaneBankDeg * Math.PI / 180);
