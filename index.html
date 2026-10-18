@@ -781,6 +781,46 @@
             </div>
           </div>
 
+          <!-- Offline Route Map Tiles -->
+          <div class="settings-card highlight-card-blue">
+            <h3>OFFLINE ROUTE MAP TILES</h3>
+            <div style="font-size:9px; color:#9ca3af; margin-bottom:8px;">Download the base map along the planned route before flight so the moving map works without mobile data. Stored tiles are used first; anything missing loads from the network.</div>
+
+            <div class="unit-toggle-row">
+              <div><strong>Map Layer:</strong></div>
+              <select id="select-offline-layer" class="setting-dropdown" style="width:auto;" title="Offline Map Layer"></select>
+            </div>
+
+            <div class="unit-toggle-row">
+              <div>
+                <strong>Zoom Range:</strong>
+                <div style="font-size:9px; color:#9ca3af;">8 = regional overview, 12 = town / aerodrome detail</div>
+              </div>
+              <div>
+                <input type="number" id="cfg-offline-min-zoom" min="1" max="16" value="8" style="width:48px;" title="Minimum Zoom">
+                &ndash;
+                <input type="number" id="cfg-offline-max-zoom" min="1" max="16" value="12" style="width:48px;" title="Maximum Zoom">
+              </div>
+            </div>
+
+            <div class="unit-toggle-row">
+              <div>
+                <strong>Corridor Half-Width (NM):</strong>
+                <div style="font-size:9px; color:#9ca3af;">Distance either side of each route leg to cover</div>
+              </div>
+              <input type="number" id="cfg-offline-corridor-nm" min="1" max="50" value="10" style="width:60px;" title="Corridor Half-Width (NM)">
+            </div>
+
+            <progress id="offline-tiles-progress" value="0" max="1" style="width:100%; margin:6px 0;"></progress>
+            <div id="offline-tiles-status" style="font-size:10px; color:#cbd5e1; margin-bottom:8px;">Checking offline storage&hellip;</div>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button id="btn-offline-download" class="unit-btn active">DOWNLOAD ROUTE TILES</button>
+              <button id="btn-offline-cancel" class="unit-btn" disabled>CANCEL</button>
+              <button id="btn-offline-clear" class="unit-btn">CLEAR STORED TILES</button>
+            </div>
+          </div>
+
           <!-- Aircraft Profiles -->
           <div class="settings-card highlight-card-blue">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
@@ -1217,6 +1257,7 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   
+  <script src="offline-tiles.js"></script>
   <script src="app.js"></script>
   <script src="test-suite.js"></script>
   <script>
