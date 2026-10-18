@@ -5223,7 +5223,8 @@ class WeatherOverlayService {
           </div>
         `,
         iconSize: [44, 38],
-        iconAnchor: [22, 19]
+        // Sit to the right of the airport symbol so the METAR dot and name label stay readable
+        iconAnchor: [-12, 24]
       });
 
       L.marker([p.lat, p.lon], { icon, interactive: false }).addTo(this.windLayerGroup);
@@ -5249,7 +5250,8 @@ class WeatherOverlayService {
           </div>
         `,
         iconSize: [22, 22],
-        iconAnchor: [11, 11]
+        // Upper-left of the airport symbol, clear of the wind badge on the right
+        iconAnchor: [34, 24]
       });
 
       const marker = L.marker([apt.lat, apt.lon], { icon, zIndexOffset: 200 }).addTo(this.metarLayerGroup);
@@ -5434,21 +5436,48 @@ let showCtafRings = localStorage.getItem("efis_show_ctaf_rings") !== "false";
 let showGlideRing = localStorage.getItem("efis_show_glide_ring") !== "false";
 let showRangeRings = localStorage.getItem("efis_show_range_rings") !== "false";
 
+// CARTO's dark basemap now returns "API KEY REQUIRED" watermarked tiles, so Dark uses Esri's keyless Dark Gray Canvas.
 const MAP_LAYERS = {
-  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+  dark: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
   satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
   topo: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
   vfr: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 };
 
+// Highest zoom each provider serves; Leaflet scales those tiles up beyond it instead of showing blank tiles.
+const MAP_LAYER_MAX_NATIVE_ZOOM = { dark: 16, satellite: 18, topo: 17, vfr: 19 };
+
+function createBaseTileLayer(layerKey) {
+  return createOfflineAwareTileLayer(layerKey, MAP_LAYERS[layerKey], {
+    maxZoom: 18,
+    maxNativeZoom: MAP_LAYER_MAX_NATIVE_ZOOM[layerKey] || 18
+  });
+}
+
 let currentTileLayer = null;
 let currentMapLayerKey = "dark";
 
-// Base layers enabled for route pre-caching. OpenStreetMap and OpenTopoMap tile policies
-// forbid bulk downloading and Esri imagery terms restrict offline caching, so those stay online-only.
+// Base layers enabled for route pre-caching, kept to the small Dark Gray canvas for personal use.
+// OpenStreetMap and OpenTopoMap tile policies forbid bulk downloading and the Esri imagery is
+// far heavier, so those stay online-only.
 const OFFLINE_DOWNLOADABLE_LAYERS = {
-  dark: "Aeronautical Dark (CARTO)"
+  dark: "Aeronautical Dark (Esri Dark Gray)"
 };
+
+// Tiles saved before the switch from CARTO carry the API-key watermark; drop them once.
+const DARK_TILE_SOURCE = "esri-dark-gray";
+function purgeStaleDarkTiles() {
+  try {
+    if (localStorage.getItem("efis_dark_tile_source") === DARK_TILE_SOURCE) return;
+    if (typeof OfflineTileCache === "undefined" || !OfflineTileCache.isSupported()) return;
+    OfflineTileCache.clearLayer("dark")
+      .then(() => {
+        localStorage.setItem("efis_dark_tile_source", DARK_TILE_SOURCE);
+        if (typeof refreshOfflineTileStatus === "function") refreshOfflineTileStatus();
+      })
+      .catch(() => {});
+  } catch (e) { /* storage unavailable: nothing cached to purge */ }
+}
 
 function initLeafletFlightMap() {
   const mapDiv = document.getElementById("leaflet-flight-map");
@@ -5462,7 +5491,8 @@ function initLeafletFlightMap() {
       attributionControl: false
     });
 
-    currentTileLayer = createOfflineAwareTileLayer(currentMapLayerKey, MAP_LAYERS[currentMapLayerKey], { maxZoom: 18 }).addTo(leafletMap);
+    purgeStaleDarkTiles();
+    currentTileLayer = createBaseTileLayer(currentMapLayerKey).addTo(leafletMap);
 
     const planeIcon = L.divIcon({
       className: 'leaflet-plane-icon',
@@ -5775,10 +5805,31 @@ function renderTrafficOnMap() {
   if (!trafficMgr.showTraffic) return;
 
   const mapBounds = (typeof leafletMap.getBounds === 'function') ? leafletMap.getBounds() : null;
+  const canProject = typeof leafletMap.latLngToContainerPoint === 'function';
 
-  trafficMgr.targets.forEach(tgt => {
+  // Declutter: threats, the selected target and the nearest traffic claim label space first.
+  // A label that would overlap one already placed is hidden; its aircraft symbol stays tappable.
+  const threatRank = { RESOLUTION_ADVISORY: 0, TRAFFIC_ADVISORY: 1, PROXIMITY: 2 };
+  const ordered = Array.from(trafficMgr.targets.values()).sort((a, b) => {
+    const ra = a.icaoHex === selectedTargetHex ? -1 : (threatRank[a.threatLevel] ?? 3);
+    const rb = b.icaoHex === selectedTargetHex ? -1 : (threatRank[b.threatLevel] ?? 3);
+    return ra !== rb ? ra - rb : a.distNm - b.distNm;
+  });
+  const placedLabels = [];
+
+  ordered.forEach(tgt => {
     const inBounds = mapBounds ? mapBounds.contains([tgt.latitude, tgt.longitude]) : false;
     if ((tgt.distNm <= 250 || inBounds) && trafficMgr.checkAltFilter(tgt.relAltFt)) {
+      let showLabel = true;
+      if (canProject) {
+        const pt = leafletMap.latLngToContainerPoint([tgt.latitude, tgt.longitude]);
+        const rect = { x1: pt.x - 36, y1: pt.y - 16, x2: pt.x + 36, y2: pt.y + 46 };
+        const isPriority = tgt.icaoHex === selectedTargetHex || tgt.threatLevel === "RESOLUTION_ADVISORY" || tgt.threatLevel === "TRAFFIC_ADVISORY";
+        const overlaps = placedLabels.some(r => rect.x1 < r.x2 && rect.x2 > r.x1 && rect.y1 < r.y2 && rect.y2 > r.y1);
+        if (overlaps && !isPriority) showLabel = false;
+        else placedLabels.push(rect);
+      }
+
       // ADSBexchange standard altitude color or threat color
       let planeColor = getAltitudeColor(tgt.altitudeFt);
       if (tgt.threatLevel === "RESOLUTION_ADVISORY") planeColor = "#ff1744";
@@ -5796,18 +5847,19 @@ function renderTrafficOnMap() {
       const icon = L.divIcon({
         className: 'leaflet-traffic-icon',
         html: `
-          <div style="display:flex; flex-direction:column; align-items:center; transform: translate(-50%, -50%); cursor:pointer;">
+          <div style="position:absolute; left:0; top:0; display:flex; flex-direction:column; align-items:center; transform: translate(-50%, -16px); cursor:pointer;">
             <div style="width:32px; height:32px; display:flex; align-items:center; justify-content:center; ${selRing}">
               ${planeSvg}
             </div>
-            <div style="background:rgba(9,13,22,0.94); border:1px solid ${planeColor}; color:#fff; font-size:9px; font-family:monospace; padding:1px 4px; border-radius:3px; margin-top:1px; white-space:nowrap; text-align:center; box-shadow:0 0 6px ${planeColor};">
+            <div style="display:${showLabel ? 'block' : 'none'}; background:rgba(9,13,22,0.94); border:1px solid ${planeColor}; color:#fff; font-size:9px; font-family:monospace; padding:1px 4px; border-radius:3px; margin-top:1px; white-space:nowrap; text-align:center; box-shadow:0 0 6px ${planeColor};">
               <strong style="color:${planeColor};">${tgt.callsign}</strong><br>
               ${relSign}${relAltHundreds.toString().padStart(2, '0')}${vsArrow} | ${Math.round(tgt.groundSpeedKt)}k
             </div>
           </div>
         `,
-        iconSize: [64, 52],
-        iconAnchor: [32, 26]
+        // Zero-size icon: the aircraft symbol is centred on its reported position, label below
+        iconSize: [0, 0],
+        iconAnchor: [0, 0]
       });
 
       const marker = L.marker([tgt.latitude, tgt.longitude], { icon });
@@ -6007,8 +6059,10 @@ function renderAirspacesOnMap() {
     const extraTagClass = props.isVtcTerminalStep ? "vtc-step" : "";
     const tagIcon = L.divIcon({
       className: 'leaflet-airspace-tag',
-      html: `<div class="airspace-badge-tag ${badgeClass} ${extraTagClass}">[ ${props.badge || props.code} ]</div>`,
-      iconAnchor: [45, 10]
+      // Centre the tag on the polygon whatever its text length
+      html: `<div class="airspace-tag-anchor"><div class="airspace-badge-tag ${badgeClass} ${extraTagClass}">[ ${props.badge || props.code} ]</div></div>`,
+      iconSize: [0, 0],
+      iconAnchor: [0, 0]
     });
 
     const tagMarker = L.marker(center, { icon: tagIcon });
@@ -6120,15 +6174,17 @@ function renderAirportsOnMap() {
 
     const aptIcon = L.divIcon({
       className: 'leaflet-airport-icon',
-      html: `<div style="display:flex; flex-direction:column; align-items:center; transform: translate(-50%, -50%); cursor:pointer;">
+      // Zero-size icon: the symbol's centre sits on the aerodrome position with the name below it
+      html: `<div style="position:absolute; left:0; top:0; white-space:nowrap; display:flex; flex-direction:column; align-items:center; transform: translate(-50%, ${isHome ? '-10px' : '-7px'}); cursor:pointer;">
                <div style="width: ${isHome ? '20px' : '14px'}; height: ${isHome ? '20px' : '14px'}; border-radius: 50%; background: #000; border: 2px solid ${markerColor}; display:flex; align-items:center; justify-content:center; box-shadow: 0 0 8px ${markerColor};">
                  <div style="width: 5px; height: 5px; border-radius: 50%; background: ${markerColor};"></div>
                </div>
                <span style="background: rgba(0,0,0,0.85); color: ${isHome ? '#00e676' : '#fff'}; font-size: 10px; font-weight: bold; font-family: monospace; padding: 1px 4px; border-radius: 2px; margin-top: 2px; border: 1px solid ${isHome ? '#00e676' : '#374151'};">
-                 ${apt.icao} ${isHome ? '⭐ (HOME BASE)' : ''}
+                 ${apt.icao}${isHome ? ' ⭐' : ''}
                </span>
              </div>`,
-      iconSize: [80, 30]
+      iconSize: [0, 0],
+      iconAnchor: [0, 0]
     });
 
     const marker = L.marker([apt.lat, apt.lon], { icon: aptIcon });
@@ -7365,7 +7421,7 @@ document.querySelectorAll(".layer-btn").forEach(btn => {
     if (leafletMap && currentTileLayer && MAP_LAYERS[layerKey]) {
       leafletMap.removeLayer(currentTileLayer);
       currentMapLayerKey = layerKey;
-      currentTileLayer = createOfflineAwareTileLayer(layerKey, MAP_LAYERS[layerKey], { maxZoom: 18 }).addTo(leafletMap);
+      currentTileLayer = createBaseTileLayer(layerKey).addTo(leafletMap);
     }
   });
 });

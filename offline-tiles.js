@@ -148,6 +148,11 @@ const OfflineTileCache = (() => {
     return txRequest("readwrite", store => store.clear());
   }
 
+  function clearLayer(layerKey) {
+    const range = IDBKeyRange.bound(`${layerKey}/`, `${layerKey}/\uffff`);
+    return txRequest("readwrite", store => store.delete(range));
+  }
+
   function countTiles(layerKey) {
     if (!layerKey) return txRequest("readonly", store => store.count());
     const range = IDBKeyRange.bound(`${layerKey}/`, `${layerKey}/￿`);
@@ -209,6 +214,7 @@ const OfflineTileCache = (() => {
     putTile,
     deleteTile,
     clear,
+    clearLayer,
     countTiles,
     downloadRoute
   };
