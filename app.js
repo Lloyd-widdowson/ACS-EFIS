@@ -1956,12 +1956,15 @@ function getPhotoForAircraft(typeCode, callsign) {
 
 // Optional user-hosted relay (e.g. a Cloudflare Worker) that fetches ADS-B networks server-side,
 // for hosts like GitHub Pages where those networks refuse browser (CORS) requests.
+// Lloyd's relay (relay/cloudflare-worker.js), used unless Settings names a different one.
+const DEFAULT_ADSB_RELAY_URL = "https://efis-adsb.lloyd-05e.workers.dev";
+
 function getAdsbRelayUrl() {
   try {
-    const v = (localStorage.getItem("efis_adsb_relay_url") || "").trim().replace(/\/+$/, "");
+    const v = (localStorage.getItem("efis_adsb_relay_url") || DEFAULT_ADSB_RELAY_URL).trim().replace(/\/+$/, "");
     return /^https:\/\/[^\s]+$/i.test(v) ? v : "";
   } catch (e) {
-    return "";
+    return DEFAULT_ADSB_RELAY_URL;
   }
 }
 
