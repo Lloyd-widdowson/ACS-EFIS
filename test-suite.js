@@ -422,13 +422,23 @@ function runAllTests() {
     fullMapOk = hasFullClass && mapInEfis;
   }
 
+  const hsiMapIdx = ORIENTATION_MODES.findIndex(m => m.id === "fullscreen-hsi-map-mode");
+  let hsiMapOk = false;
+  if (hsiMapIdx >= 0) {
+    applyOrientationMode(hsiMapIdx, false);
+    const hasHsiMapClass = document.body.classList.contains("fullscreen-hsi-map-mode");
+    const mapInEfis = document.getElementById("efis-map-instrument-cluster")?.contains(document.getElementById("map-viewport-wrapper"));
+    hsiMapOk = hasHsiMapClass && mapInEfis && hsiMapOverlayActive;
+  }
+
   // Restore initial mode
   applyOrientationMode(initialModeIdx, false);
+  hsiMapOk = hsiMapOk && !hsiMapOverlayActive === (ORIENTATION_MODES[initialModeIdx].id !== "fullscreen-hsi-map-mode");
 
   assert(
     "EFIS Multi-View Orientation Modes (Map Split & Fullscreen Map)",
-    ORIENTATION_MODES.length === 7 && mapSplitOk && fullMapOk,
-    `ModesCount=${ORIENTATION_MODES.length}, MapSplitOk=${mapSplitOk}, FullMapOk=${fullMapOk}`
+    ORIENTATION_MODES.length === 8 && mapSplitOk && fullMapOk && hsiMapOk,
+    `ModesCount=${ORIENTATION_MODES.length}, MapSplitOk=${mapSplitOk}, FullMapOk=${fullMapOk}, HsiMapOk=${hsiMapOk}`
   );
 
   // --------------------------------------------------------------------------
