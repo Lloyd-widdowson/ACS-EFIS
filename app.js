@@ -2182,7 +2182,7 @@ class TrafficManager {
     const relay = getAdsbRelayUrl();
     if (relay) {
       // The relay asks several networks itself, so give it longer and retry it sooner
-      list.push({ name: "Relay", url: `${relay}${relay.includes("?") ? "&" : "?"}lat=${lat}&lon=${lon}&dist=${radiusNm}`, type: "adsb_v2", timeoutMs: 10000, backoffMs: 20000 });
+      list.push({ name: "Relay", url: `${relay}${relay.includes("?") ? "&" : "?"}lat=${lat}&lon=${lon}&dist=${radiusNm}`, type: "adsb_v2", timeoutMs: 25000, backoffMs: 20000 });
     }
     if (origin) {
       list.push({ name: "Local Proxy", url: `${origin}/api/adsb?lat=${lat}&lon=${lon}&dist=${radiusNm}`, type: "adsb_v2" });

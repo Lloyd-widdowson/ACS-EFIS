@@ -92,7 +92,8 @@ async function fetchOpenSky(lat, lon, env) {
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
+  // OpenSky often takes several seconds to answer
+  const timer = setTimeout(() => controller.abort(), 20000);
   let data;
   try {
     const resp = await fetch(url, { headers, signal: controller.signal });
