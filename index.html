@@ -54,7 +54,7 @@
       <p>Do not use it as a primary or secondary flight instrument, or rely on it for navigation, terrain clearance, traffic avoidance, airspace avoidance or any in-flight decision. Sensor, GPS, map and traffic data may be inaccurate, delayed or fail without warning.</p>
       <p>By continuing you accept that you use this app entirely at your own risk.</p>
       <button id="btn-accept-disclaimer" class="startup-disclaimer-btn" type="button" onclick="document.getElementById('startup-disclaimer').style.display='none';" style="width:100%; margin-top:8px; padding:14px; border:none; border-radius:8px; background:#ff1744; color:#fff; font-size:16px; font-weight:700; cursor:pointer;">I UNDERSTAND &amp; ACCEPT</button>
-      <div class="startup-disclaimer-version" style="margin-top:10px; text-align:center; font-size:11px; color:#64748b;">v3.3.3</div>
+      <div class="startup-disclaimer-version" style="margin-top:10px; text-align:center; font-size:11px; color:#64748b;">v3.3.4</div>
     </div>
   </div>
 
@@ -68,7 +68,7 @@
         
         <!-- Live ADS-B Traffic Status Pill (Clickable) -->
         <div class="status-indicator traffic-live" id="adsb-status" title="Click for ADS-B Traffic Radar Directory">
-          <span class="dot-traffic"></span> <span id="adsb-status-text">ADS-B: 6 TRK</span>
+          <span class="dot-traffic"></span> <span id="adsb-status-text">ADS-B --</span>
         </div>
 
         <!-- Garmin SVT Synthetic Vision View Switcher -->
@@ -908,7 +908,7 @@
               <img src="icon-192.png" alt="ACS EFIS & FMS" style="width:64px; height:64px; border-radius:12px; border:2px solid #00e5ff; background:#fff; object-fit:contain; padding:2px; flex-shrink:0;">
               <div>
                 <h3 style="margin:0 0 4px 0; color:#fff; font-size:16px;">ACS EFIS &amp; FMS</h3>
-                <div style="font-size:11px; color:#00e5ff; font-weight:600;">Next-Gen Glass Cockpit Suite v3.3.3</div>
+                <div style="font-size:11px; color:#00e5ff; font-weight:600;">Next-Gen Glass Cockpit Suite v3.3.4</div>
                 <div style="font-size:10px; color:#9ca3af; margin-top:2px;">Australian VNC/VTC AIRAC • ADS-B In • AHRS Sensor Fusion</div>
               </div>
             </div>
@@ -918,6 +918,9 @@
             <div id="app-safety-disclaimer" style="margin-top:8px; padding:8px; border:1px solid #ff1744; border-radius:6px; font-size:10px; color:#fecaca; line-height:1.4;">
               <strong style="color:#ff1744;">⚠️ NON-OPERATIONAL &mdash; EXPERIMENTAL HOBBYIST SOFTWARE.</strong>
               Not certified or approved by the FAA, CASA, EASA or any other aviation authority. Do not use as a primary or secondary flight instrument, or rely on it for navigation, terrain clearance, traffic or airspace avoidance. You assume all risk; see readme.md.
+            </div>
+            <div style="margin-top:6px; font-size:9px; color:#9ca3af; line-height:1.4;">
+              Live traffic from community ADS-B networks: <a href="https://adsb.fi" target="_blank" rel="noopener" style="color:#00e5ff;">adsb.fi</a>, <a href="https://airplanes.live" target="_blank" rel="noopener" style="color:#00e5ff;">airplanes.live</a>, <a href="https://adsb.lol" target="_blank" rel="noopener" style="color:#00e5ff;">adsb.lol</a> and <a href="https://opensky-network.org" target="_blank" rel="noopener" style="color:#00e5ff;">OpenSky Network</a>. Coverage is incomplete and aircraft without ADS-B are not shown.
             </div>
           </div>
 
