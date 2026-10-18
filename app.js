@@ -1954,6 +1954,17 @@ function getPhotoForAircraft(typeCode, callsign) {
   return "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=500&auto=format&fit=crop&q=80";
 }
 
+// Optional user-hosted relay (e.g. a Cloudflare Worker) that fetches ADS-B networks server-side,
+// for hosts like GitHub Pages where those networks refuse browser (CORS) requests.
+function getAdsbRelayUrl() {
+  try {
+    const v = (localStorage.getItem("efis_adsb_relay_url") || "").trim().replace(/\/+$/, "");
+    return /^https:\/\/[^\s]+$/i.test(v) ? v : "";
+  } catch (e) {
+    return "";
+  }
+}
+
 class TrafficManager {
   constructor() {
     this.targets = new Map();
@@ -2165,6 +2176,10 @@ class TrafficManager {
     // OpenSky: keep the box under 25 square degrees (1 credit) and poll it slowly, anonymous access is 400 credits/day
     const boxDeg = 2.4;
     const list = [];
+    const relay = getAdsbRelayUrl();
+    if (relay) {
+      list.push({ name: "Relay", url: `${relay}${relay.includes("?") ? "&" : "?"}lat=${lat}&lon=${lon}&dist=${radiusNm}`, type: "adsb_v2" });
+    }
     if (origin) {
       list.push({ name: "Local Proxy", url: `${origin}/api/adsb?lat=${lat}&lon=${lon}&dist=${radiusNm}`, type: "adsb_v2" });
     }
@@ -7140,6 +7155,25 @@ document.getElementById("btn-map-live-feed")?.addEventListener("click", function
     audioSynth.playDivertChime();
   }
 });
+(() => {
+  const relayInput = document.getElementById("cfg-adsb-relay-url");
+  if (!relayInput) return;
+  relayInput.value = getAdsbRelayUrl();
+  relayInput.addEventListener("change", () => {
+    const v = relayInput.value.trim();
+    if (v && !/^https:\/\//i.test(v)) {
+      relayInput.style.borderColor = "#ff1744";
+      return;
+    }
+    relayInput.style.borderColor = "";
+    try { localStorage.setItem("efis_adsb_relay_url", v); } catch (e) { /* storage unavailable */ }
+    // Try the new relay straight away instead of waiting out earlier failures
+    trafficMgr.sourceBackoffUntil = {};
+    trafficMgr.workingSourceName = null;
+    trafficMgr.lastLiveFetchTime = 0;
+  });
+})();
+
 document.getElementById("btn-cfg-live-feed")?.addEventListener("click", function() {
   trafficMgr.toggleLiveFeed();
   if (audioSynth && typeof audioSynth.playDivertChime === 'function') {
