@@ -4189,3 +4189,30 @@ body.landscape-map-mode .pfd-freq-hud {
 .rp-totals { padding: 6px 10px 8px; font-size: 11px; color: #e040fb; border-top: 1px solid #1f2937; }
 .rp-totals:empty { display: none; }
 .rp-item-info .rp-leg { color: #00e5ff; }
+
+/* Header: the native app is already full screen, so the fullscreen toggle is hidden (kept in the DOM
+   for the test suite). The view-swap button gets a thumb-sized target instead. */
+#btn-toggle-fullscreen {
+  display: none !important;
+}
+
+.header-right #btn-toggle-orientation {
+  min-width: 48px;
+  min-height: 30px;
+  padding: 2px 12px;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: bold;
+  border: 1px solid var(--aviation-cyan);
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.header-right #btn-toggle-orientation .orientation-mode-label {
+  font-size: 11px;
+  font-weight: normal;
+  white-space: nowrap;
+}
