@@ -159,11 +159,6 @@ let isMapBackdropEnabled = true;
 // True in the "HSI + MOVING MAP" layout: the live map is drawn behind a see-through HSI
 let hsiMapOverlayActive = false;
 const HSI_MAP_RANGE_NM = 10.0;
-const HSI_MAP_RANGE_RINGS = [
-  { ratio: 0.25, label: "2.5 NM" },
-  { ratio: 0.50, label: "5 NM" },
-  { ratio: 1.00, label: "10 NM" }
-];
 let showFlightPathMarker = true;
 
 // Turn Coordinator & Inclinometer Ball Toggle (Saved in localStorage)
@@ -3946,7 +3941,8 @@ function layoutHsiMapUnderlay() {
   // Same geometry as renderHsiMaster
   // Offsets are from the cluster's padding box, which is what the wrapper is positioned in
   const cx = hRect.left - cRect.left - cluster.clientLeft + hRect.width / 2;
-  const cy = hRect.top - cRect.top - cluster.clientTop + hRect.height / 2 + 6;
+  computeHsiGeometry(hRect.width, hRect.height);
+  const cy = hRect.top - cRect.top - cluster.clientTop + hsiGeom.cy;
   const far = Math.hypot(Math.max(cx, cluster.clientWidth - cx), Math.max(cy, cluster.clientHeight - cy));
   const size = Math.ceil(far * 2) + 4;
 
@@ -3956,7 +3952,7 @@ function layoutHsiMapUnderlay() {
   wrapper.style.top = (cy - size / 2) + "px";
 
   hsiMapUnderlay.size = size;
-  hsiMapUnderlay.radius = Math.min(hRect.width * 0.44, (hRect.height - 76) * 0.46);
+  hsiMapUnderlay.radius = hsiGeom.radius;
   hsiMapUnderlay.heading = NaN;
   hsiMapUnderlay.zoom = NaN;
   if (leafletMap) {
@@ -4667,15 +4663,36 @@ function renderHsiMapVignette(ctx, cx, cy, radius, dw, dh) {
   ctx.fillRect(0, 0, dw, dh);
 }
 
+// HSI dial geometry, shared by the renderer and the moving-map underlay.
+// The dial fills the band between the top data boxes and the bottom nav strip; the
+// heading box sits on its top edge. Filled in place so the draw loop allocates nothing.
+const HSI_DIAL_TOP = 46;
+const HSI_DIAL_BOTTOM_MARGIN = 36;
+const hsiGeom = { cx: 0, cy: 0, radius: 0 };
+function computeHsiGeometry(dw, dh) {
+  const band = Math.max(80, dh - HSI_DIAL_TOP - HSI_DIAL_BOTTOM_MARGIN);
+  hsiGeom.radius = Math.max(36, Math.min(dw * 0.46 - 6, band / 2 - 6));
+  hsiGeom.cx = dw / 2;
+  hsiGeom.cy = HSI_DIAL_TOP + band / 2;
+  return hsiGeom;
+}
+
+const HSI_ROSE_NUMBERS = ["N", "3", "6", "E", "12", "15", "S", "21", "24", "W", "30", "33"];
+
+// Cached compass-face gradient (rebuilt only when the dial moves or resizes)
+let hsiFaceGradient = null;
+let hsiFaceKey = -1;
+
 function renderHsiMaster(ctx, tel, w, h) {
   ctx.save();
   const dpr = window.devicePixelRatio || 1;
   ctx.scale(dpr, dpr);
   const dw = w / dpr;
   const dh = h / dpr;
-  const cx = dw / 2;
-  const cy = dh / 2 + 6;
-  const radius = Math.min(dw * 0.44, (dh - 76) * 0.46);
+  computeHsiGeometry(dw, dh);
+  const cx = hsiGeom.cx;
+  const cy = hsiGeom.cy;
+  const radius = hsiGeom.radius;
 
   ctx.clearRect(0, 0, dw, dh);
 
@@ -4707,185 +4724,153 @@ function renderHsiMaster(ctx, tel, w, h) {
     }
   }
 
-  // 2. CONCENTRIC RADAR / DISTANCE RANGE RINGS (Centered at cx, cy)
-  const rangeRings = hsiMapOverlayActive ? HSI_MAP_RANGE_RINGS : [
-    { ratio: 0.33, label: "2.5 NM" },
-    { ratio: 0.66, label: "5.0 NM" },
-    { ratio: 1.00, label: "10.0 NM" }
-  ];
-
-  rangeRings.forEach(ring => {
-    const r = radius * ring.ratio;
-    ctx.strokeStyle = hsiMapOverlayActive ? "rgba(0, 229, 255, 0.55)" : "rgba(0, 229, 255, 0.22)";
-    ctx.lineWidth = 1.0;
-    ctx.setLineDash([4, 6]);
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]); // Reset line dash
-
-    // Range Label at 45° offset
-    const labelRad = 45 * Math.PI / 180;
-    const lx = cx + r * Math.sin(labelRad);
-    const ly = cy - r * Math.cos(labelRad);
-    ctx.font = "bold 9px 'Share Tech Mono', monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    if (hsiMapOverlayActive) {
-      ctx.lineWidth = 3;
-      ctx.lineJoin = "round";
-      ctx.strokeStyle = "rgba(0, 0, 0, 0.75)";
-      ctx.strokeText(ring.label, lx, ly - 2);
-      ctx.lineJoin = "miter";
-      ctx.fillStyle = "#7df3ff";
-    } else {
-      ctx.fillStyle = "rgba(0, 229, 255, 0.6)";
-    }
-    ctx.fillText(ring.label, lx, ly - 2);
-  });
-
-  // Inner Compass Shadow & Mask Bezel
+  // 2. COMPASS FACE
   if (hsiMapOverlayActive) {
     // Smoked-glass band under the tick marks and numbers only, so the map stays clear inside
     ctx.fillStyle = "rgba(3, 7, 16, 0.62)";
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.arc(cx, cy, radius - 44, 0, Math.PI * 2, true);
+    ctx.arc(cx, cy, Math.max(1, radius - 44), 0, Math.PI * 2, true);
     ctx.fill();
-    ctx.strokeStyle = "rgba(0, 229, 255, 0.35)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius - 44, 0, Math.PI * 2);
-    ctx.stroke();
   } else {
-  const compassBg = ctx.createRadialGradient(cx, cy, radius * 0.2, cx, cy, radius);
-  compassBg.addColorStop(0, "rgba(5, 8, 17, 0.85)");
-  compassBg.addColorStop(0.85, "rgba(7, 11, 24, 0.92)");
-  compassBg.addColorStop(1, "rgba(10, 16, 32, 0.98)");
-  ctx.fillStyle = compassBg;
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.fill();
+    const faceKey = cx * 100003 + cy * 101 + radius;
+    if (!hsiFaceGradient || hsiFaceKey !== faceKey) {
+      hsiFaceGradient = ctx.createRadialGradient(cx, cy - radius * 0.25, radius * 0.1, cx, cy, radius);
+      hsiFaceGradient.addColorStop(0, "#132036");
+      hsiFaceGradient.addColorStop(0.7, "#0b1322");
+      hsiFaceGradient.addColorStop(1, "#060a14");
+      hsiFaceKey = faceKey;
+    }
+    ctx.fillStyle = hsiFaceGradient;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Slightly lighter tick band around the rim
+    ctx.fillStyle = "rgba(255, 255, 255, 0.035)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.arc(cx, cy, Math.max(1, radius - 44), 0, Math.PI * 2, true);
+    ctx.fill();
   }
 
-  // Outer Precision Dial Bezel Ring
-  ctx.strokeStyle = "#24324a";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.strokeStyle = "rgba(0, 229, 255, 0.4)";
+  // Inner edge of the tick band
+  ctx.strokeStyle = "rgba(0, 229, 255, 0.22)";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.arc(cx, cy, radius + 2, 0, Math.PI * 2);
+  ctx.arc(cx, cy, Math.max(1, radius - 44), 0, Math.PI * 2);
   ctx.stroke();
+
+  // Bezel: dark rim with a thin cyan glow line outside it
+  ctx.strokeStyle = "#1c2940";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius + 1, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(0, 229, 255, 0.55)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius + 3.5, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Range rings: 2.5 and 5 NM inside a 10 NM dial (same scale as traffic and the map underlay)
+  ctx.setLineDash([3, 6]);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = hsiMapOverlayActive ? "rgba(0, 229, 255, 0.55)" : "rgba(0, 229, 255, 0.28)";
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.25, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.5, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.font = "bold 9px 'Share Tech Mono', monospace";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+  ctx.fillStyle = hsiMapOverlayActive ? "#7df3ff" : "rgba(125, 243, 255, 0.75)";
+  // Labels sit just outside each ring at the lower-right (135°), clear of the lubber line
+  const ringLabelDx = 0.7071, ringLabelDy = 0.7071;
+  ctx.strokeText("2.5", cx + radius * 0.25 * ringLabelDx + 3, cy + radius * 0.25 * ringLabelDy + 4);
+  ctx.fillText("2.5", cx + radius * 0.25 * ringLabelDx + 3, cy + radius * 0.25 * ringLabelDy + 4);
+  ctx.strokeText("5", cx + radius * 0.5 * ringLabelDx + 3, cy + radius * 0.5 * ringLabelDy + 4);
+  ctx.fillText("5", cx + radius * 0.5 * ringLabelDx + 3, cy + radius * 0.5 * ringLabelDy + 4);
+  ctx.lineJoin = "miter";
+
+  // Fixed 45° index marks outside the rim (relative bearings ±45, ±90, ±135)
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+  ctx.lineWidth = 2;
+  for (let rel = 45; rel < 360; rel += 45) {
+    if (rel === 180) continue;
+    const rr = rel * Math.PI / 180;
+    const sx = Math.sin(rr), sy = -Math.cos(rr);
+    ctx.beginPath();
+    ctx.moveTo(cx + sx * (radius + 6), cy + sy * (radius + 6));
+    ctx.lineTo(cx + sx * (radius + 13), cy + sy * (radius + 13));
+    ctx.stroke();
+  }
 
   // 3. 360° ROTATING COMPASS ROSE
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(-tel.heading * Math.PI / 180);
 
-  // Compass Rose Inner Delineation Circle
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.arc(0, 0, radius - 20, 0, Math.PI * 2);
-  ctx.stroke();
-
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
+  ctx.lineCap = "round";
 
   for (let deg = 0; deg < 360; deg += 5) {
     const rad = (deg - 90) * Math.PI / 180;
     const isThirty = deg % 30 === 0;
     const isTen = deg % 10 === 0;
-    const isFortyFive = deg % 45 === 0 && !isThirty;
-    const len = isThirty ? 15 : isTen ? 10 : 5;
+    const len = isThirty ? 16 : isTen ? 11 : 6;
+    const c = Math.cos(rad), sn = Math.sin(rad);
 
-    const x1 = radius * Math.cos(rad);
-    const y1 = radius * Math.sin(rad);
-    const x2 = (radius - len) * Math.cos(rad);
-    const y2 = (radius - len) * Math.sin(rad);
-
-    ctx.strokeStyle = isThirty ? "#ffffff" : isTen ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.45)";
-    ctx.lineWidth = isThirty ? 2.2 : isTen ? 1.4 : 1.0;
+    ctx.strokeStyle = isThirty ? "#ffffff" : isTen ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.4)";
+    ctx.lineWidth = isThirty ? 2.6 : isTen ? 1.6 : 1.0;
     ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
+    ctx.moveTo((radius - 2) * c, (radius - 2) * sn);
+    ctx.lineTo((radius - 2 - len) * c, (radius - 2 - len) * sn);
     ctx.stroke();
 
-    // 45° Intercardinal Diamond Marks (NE, SE, SW, NW)
-    if (isFortyFive) {
-      const dx = (radius - 12) * Math.cos(rad);
-      const dy = (radius - 12) * Math.sin(rad);
-      ctx.fillStyle = "rgba(0, 229, 255, 0.7)";
-      ctx.beginPath();
-      ctx.moveTo(dx, dy - 3);
-      ctx.lineTo(dx + 3, dy);
-      ctx.lineTo(dx, dy + 3);
-      ctx.lineTo(dx - 3, dy);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // Major Degree & Cardinal Numbers (Counter-rotated to always remain upright for the pilot)
+    // Cardinal letters and 30° numbers, counter-rotated so they always read upright
     if (isThirty) {
-      const isCardinal = (deg === 0 || deg === 90 || deg === 180 || deg === 270);
-      const isNorth = (deg === 0);
-      const label = isNorth ? "N" : deg === 90 ? "E" : deg === 180 ? "S" : deg === 270 ? "W" : (deg / 10).toString();
-      const tx = (radius - len - (isCardinal ? 14 : 12)) * Math.cos(rad);
-      const ty = (radius - len - (isCardinal ? 14 : 12)) * Math.sin(rad);
-
+      const isCardinal = deg % 90 === 0;
+      const label = deg === 0 ? "N" : deg === 90 ? "E" : deg === 180 ? "S" : deg === 270 ? "W" : HSI_ROSE_NUMBERS[deg / 30];
+      const tr = radius - (isCardinal ? 34 : 32);
       ctx.save();
-      ctx.translate(tx, ty);
-      ctx.rotate(tel.heading * Math.PI / 180); // Counter-rotate so text is always upright
-
+      ctx.translate(tr * c, tr * sn);
+      ctx.rotate(tel.heading * Math.PI / 180);
       if (isCardinal) {
-        // High-contrast Glassmorphic Badge for N, S, E, W
-        const badgeW = isNorth ? 26 : 24;
-        const badgeH = isNorth ? 24 : 22;
-        ctx.fillStyle = isNorth ? "rgba(0, 32, 48, 0.95)" : "rgba(10, 16, 30, 0.9)";
-        ctx.strokeStyle = isNorth ? "#00e5ff" : "rgba(255, 255, 255, 0.45)";
-        ctx.lineWidth = isNorth ? 2.0 : 1.2;
-
-        ctx.beginPath();
-        if (ctx.roundRect) {
-          ctx.roundRect(-badgeW / 2, -badgeH / 2, badgeW, badgeH, 4);
-        } else {
-          ctx.rect(-badgeW / 2, -badgeH / 2, badgeW, badgeH);
-        }
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.font = isNorth ? "900 18px 'Share Tech Mono', monospace" : "900 16px 'Share Tech Mono', monospace";
-        ctx.fillStyle = isNorth ? "#00e5ff" : "#ffffff";
-        ctx.fillText(label, 0, 1);
+        ctx.font = "900 19px 'Share Tech Mono', monospace";
+        ctx.fillStyle = deg === 0 ? "#00e5ff" : "#ffffff";
       } else {
-        // Intermediate 30° degree numbers (3, 6, 12, 15, 21, 24, 30, 33)
-        ctx.font = "bold 14px 'Share Tech Mono', monospace";
+        ctx.font = "bold 15px 'Share Tech Mono', monospace";
         ctx.fillStyle = "#cbd5e1";
-        ctx.fillText(label, 0, 0);
       }
-
+      ctx.fillText(label, 0, 1);
       ctx.restore();
     }
   }
+  ctx.lineCap = "butt";
 
-  // Cyan Selected Heading Bug (Dual-Prong Garmin Notch on Outer Rim)
+  // Cyan Selected Heading Bug: notched block straddling the rim
   ctx.save();
   ctx.rotate(tel.selectedHeadingBug * Math.PI / 180);
-  ctx.strokeStyle = "#00e5ff";
-  ctx.fillStyle = "rgba(0, 229, 255, 0.35)";
-  ctx.lineWidth = 2.0;
+  ctx.fillStyle = "#00e5ff";
+  ctx.strokeStyle = "#002b33";
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(-10, -radius - 4);
-  ctx.lineTo(-10, -radius + 8);
-  ctx.lineTo(-4, -radius + 8);
+  ctx.moveTo(-9, -radius - 5);
+  ctx.lineTo(9, -radius - 5);
+  ctx.lineTo(9, -radius + 6);
+  ctx.lineTo(4, -radius + 6);
   ctx.lineTo(0, -radius);
-  ctx.lineTo(4, -radius + 8);
-  ctx.lineTo(10, -radius + 8);
-  ctx.lineTo(10, -radius - 4);
+  ctx.lineTo(-4, -radius + 6);
+  ctx.lineTo(-9, -radius + 6);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
@@ -4975,18 +4960,6 @@ function renderHsiMaster(ctx, tel, w, h) {
 
   ctx.restore(); // End Rotating Compass
 
-  // 4. TOP FIXED LUBBER LINE (White Arrowhead Index pointing at current heading)
-  ctx.fillStyle = "#ffffff";
-  ctx.strokeStyle = "#000000";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - radius);
-  ctx.lineTo(cx - 7, cy - radius - 12);
-  ctx.lineTo(cx + 7, cy - radius - 12);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
   // 5. CENTER OWNSHIP AIRCRAFT SILHOUETTE (Solid High-Contrast Symbol)
   ctx.save();
   ctx.translate(cx, cy);
@@ -5018,7 +4991,7 @@ function renderHsiMaster(ctx, tel, w, h) {
 
   // 6. ADS-B TRAFFIC TARGETS ON HSI COMPASS ROSE (Range: 12 NM)
   if (trafficMgr.showTraffic) {
-    const radarRangeNm = hsiMapOverlayActive ? HSI_MAP_RANGE_NM : 12.0;
+    const radarRangeNm = HSI_MAP_RANGE_NM;
     const pxPerNm = radius / radarRangeNm;
 
     trafficMgr.targets.forEach(tgt => {
@@ -5070,15 +5043,30 @@ function renderHsiMaster(ctx, tel, w, h) {
 
   // 7. TOP DIGITAL HEADING & BUG BOXES (Enlarged High-Visibility Typography)
   const hdgBoxW = 84, hdgBoxH = 34;
+  // Heading box with a pointer that drops onto the rim: it is the lubber line
+  const lubberTipY = cy - radius + 1;
+  const boxBottom = 4 + hdgBoxH;
   ctx.fillStyle = "#090d16";
   ctx.strokeStyle = "#00e5ff";
   ctx.lineWidth = 2.0;
-  if (ctx.roundRect) {
-    ctx.beginPath(); ctx.roundRect(cx - hdgBoxW / 2, 4, hdgBoxW, hdgBoxH, 4); ctx.fill(); ctx.stroke();
-  } else {
-    ctx.fillRect(cx - hdgBoxW / 2, 4, hdgBoxW, hdgBoxH);
-    ctx.strokeRect(cx - hdgBoxW / 2, 4, hdgBoxW, hdgBoxH);
+  ctx.beginPath();
+  ctx.moveTo(cx - hdgBoxW / 2 + 4, 4);
+  ctx.lineTo(cx + hdgBoxW / 2 - 4, 4);
+  ctx.quadraticCurveTo(cx + hdgBoxW / 2, 4, cx + hdgBoxW / 2, 8);
+  ctx.lineTo(cx + hdgBoxW / 2, boxBottom - 4);
+  ctx.quadraticCurveTo(cx + hdgBoxW / 2, boxBottom, cx + hdgBoxW / 2 - 4, boxBottom);
+  if (lubberTipY > boxBottom + 2) {
+    ctx.lineTo(cx + 8, boxBottom);
+    ctx.lineTo(cx, lubberTipY);
+    ctx.lineTo(cx - 8, boxBottom);
   }
+  ctx.lineTo(cx - hdgBoxW / 2 + 4, boxBottom);
+  ctx.quadraticCurveTo(cx - hdgBoxW / 2, boxBottom, cx - hdgBoxW / 2, boxBottom - 4);
+  ctx.lineTo(cx - hdgBoxW / 2, 8);
+  ctx.quadraticCurveTo(cx - hdgBoxW / 2, 4, cx - hdgBoxW / 2 + 4, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 
   ctx.fillStyle = "#ffffff";
   ctx.font = "900 24px 'Share Tech Mono', monospace";
@@ -5157,6 +5145,14 @@ function renderHsiMaster(ctx, tel, w, h) {
   ctx.fillText("VS", vsX + vsW / 2, 14);
   ctx.font = "900 15px 'Share Tech Mono', monospace";
   ctx.fillText(`${tel.targetVsFpm}`, vsX + vsW / 2, 28);
+
+  // Dial range readout, bottom-left above the nav strip
+  ctx.font = "bold 10px 'Share Tech Mono', monospace";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = "rgba(125, 243, 255, 0.85)";
+  ctx.fillText("RNG 10 NM", 8, dh - 36);
+  ctx.textBaseline = "middle";
 
   // 8. BOTTOM NAVIGATION DATA STRIP
   const botY = dh - 4;
