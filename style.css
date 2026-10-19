@@ -992,13 +992,48 @@ body.fullscreen-hsi-map-mode .hsi-instrument-cluster {
   background: transparent !important;
 }
 
-body.fullscreen-hsi-map-mode .full-hsi-canvas-wrap,
-body.fullscreen-hsi-map-mode #canvas-hsi-master {
+body.hsi-map-overlay .full-hsi-canvas-wrap,
+body.hsi-map-overlay #canvas-hsi-master {
   background: transparent !important;
 }
 
+/* 9. PORTRAIT SPLIT (PFD + HSI over the moving map): grid so the map and HSI share the lower cell */
+body.portrait-hsi-map-mode .efis-layout-container {
+  display: grid;
+  grid-template-columns: 100%;
+  grid-template-rows: minmax(0, 1.12fr) minmax(0, 0.88fr);
+}
+
+body.portrait-hsi-map-mode .pfd-instrument-cluster {
+  grid-area: 1 / 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: #000000;
+  display: block;
+}
+
+body.portrait-hsi-map-mode .efis-map-instrument-cluster {
+  grid-area: 2 / 1;
+  min-height: 0;
+  display: block !important;
+  z-index: 0;
+  background: #050811;
+  border-top: 2px solid #000000;
+}
+
+body.portrait-hsi-map-mode .hsi-instrument-cluster {
+  grid-area: 2 / 1;
+  min-height: 0;
+  position: relative;
+  display: block !important;
+  z-index: 1;
+  background: transparent !important;
+  border-top: 2px solid #000000;
+}
+
 /* The map is sized, centred and rotated (heading-up) from app.js */
-body.fullscreen-hsi-map-mode .efis-map-instrument-cluster .map-viewport-wrapper {
+body.hsi-map-overlay .efis-map-instrument-cluster .map-viewport-wrapper {
   position: absolute;
   transform-origin: 50% 50%;
   pointer-events: none;
@@ -1007,27 +1042,27 @@ body.fullscreen-hsi-map-mode .efis-map-instrument-cluster .map-viewport-wrapper 
 
 /* Keep airport, airspace, waypoint and traffic labels upright on the heading-up map.
    --hsi-map-upright is set from app.js; each label turns about its own anchor point. */
-body.fullscreen-hsi-map-mode .leaflet-airport-icon > div,
-body.fullscreen-hsi-map-mode .leaflet-airspace-tag > div {
+body.hsi-map-overlay .leaflet-airport-icon > div,
+body.hsi-map-overlay .leaflet-airspace-tag > div {
   rotate: var(--hsi-map-upright, 0deg);
   transform-origin: 0 0;
 }
 
-body.fullscreen-hsi-map-mode .leaflet-vfr-waypoint-icon > div {
+body.hsi-map-overlay .leaflet-vfr-waypoint-icon > div {
   rotate: var(--hsi-map-upright, 0deg);
   transform-origin: 20px 10px;
 }
 
-body.fullscreen-hsi-map-mode .leaflet-traffic-icon > div > div:last-child,
-body.fullscreen-hsi-map-mode .wind-badge-lbl,
-body.fullscreen-hsi-map-mode .metar-dot-text {
+body.hsi-map-overlay .leaflet-traffic-icon > div > div:last-child,
+body.hsi-map-overlay .wind-badge-lbl,
+body.hsi-map-overlay .metar-dot-text {
   display: inline-block;
   rotate: var(--hsi-map-upright, 0deg);
 }
 
 /* Only the map itself shows: its buttons, route bar and own-ship icon are replaced by the HSI */
-body.fullscreen-hsi-map-mode .map-viewport-wrapper > :not(#leaflet-flight-map),
-body.fullscreen-hsi-map-mode .leaflet-plane-icon,
+body.hsi-map-overlay .map-viewport-wrapper > :not(#leaflet-flight-map),
+body.hsi-map-overlay .leaflet-plane-icon,
 body.fullscreen-hsi-map-mode #cockpit-footer-nav {
   display: none !important;
 }
@@ -1237,6 +1272,14 @@ body.fullscreen-hsi-map-mode #cockpit-footer-nav {
   width: 100%;
   height: 100%;
   position: relative;
+}
+
+/* The canvas is sized from its panel, never the other way round. Without this, a canvas
+   sized for a full-screen layout kept its height in a split and squeezed the PFD to nothing. */
+.full-pfd-canvas-wrap > canvas,
+.full-hsi-canvas-wrap > canvas {
+  position: absolute;
+  inset: 0;
 }
 
 /* --------------------------------------------------------------------------
