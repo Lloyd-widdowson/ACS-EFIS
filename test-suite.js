@@ -422,22 +422,23 @@ function runAllTests() {
     fullMapOk = hasFullClass && mapInEfis;
   }
 
-  const hsiMapIdx = ORIENTATION_MODES.findIndex(m => m.id === "fullscreen-hsi-map-mode");
-  let hsiMapOk = false;
-  if (hsiMapIdx >= 0) {
-    applyOrientationMode(hsiMapIdx, false);
-    const hasHsiMapClass = document.body.classList.contains("fullscreen-hsi-map-mode");
+  let hsiMapOk = true;
+  ["fullscreen-hsi-map-mode", "portrait-hsi-map-mode"].forEach(id => {
+    const idx = ORIENTATION_MODES.findIndex(m => m.id === id);
+    if (idx < 0) { hsiMapOk = false; return; }
+    applyOrientationMode(idx, false);
+    const hasClass = document.body.classList.contains(id);
     const mapInEfis = document.getElementById("efis-map-instrument-cluster")?.contains(document.getElementById("map-viewport-wrapper"));
-    hsiMapOk = hasHsiMapClass && mapInEfis && hsiMapOverlayActive;
-  }
+    hsiMapOk = hsiMapOk && hasClass && mapInEfis && hsiMapOverlayActive;
+  });
 
   // Restore initial mode
   applyOrientationMode(initialModeIdx, false);
-  hsiMapOk = hsiMapOk && !hsiMapOverlayActive === (ORIENTATION_MODES[initialModeIdx].id !== "fullscreen-hsi-map-mode");
+  hsiMapOk = hsiMapOk && hsiMapOverlayActive === HSI_MAP_OVERLAY_MODES.includes(ORIENTATION_MODES[initialModeIdx].id);
 
   assert(
     "EFIS Multi-View Orientation Modes (Map Split & Fullscreen Map)",
-    ORIENTATION_MODES.length === 8 && mapSplitOk && fullMapOk && hsiMapOk,
+    ORIENTATION_MODES.length === 9 && mapSplitOk && fullMapOk && hsiMapOk,
     `ModesCount=${ORIENTATION_MODES.length}, MapSplitOk=${mapSplitOk}, FullMapOk=${fullMapOk}, HsiMapOk=${hsiMapOk}`
   );
 

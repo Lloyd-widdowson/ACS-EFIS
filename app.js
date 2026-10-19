@@ -3944,9 +3944,10 @@ function layoutHsiMapUnderlay() {
   if (!hRect || !cRect.width || !hRect.width) return;
 
   // Same geometry as renderHsiMaster
-  const cx = hRect.left - cRect.left + hRect.width / 2;
-  const cy = hRect.top - cRect.top + hRect.height / 2 + 6;
-  const far = Math.hypot(Math.max(cx, cRect.width - cx), Math.max(cy, cRect.height - cy));
+  // Offsets are from the cluster's padding box, which is what the wrapper is positioned in
+  const cx = hRect.left - cRect.left - cluster.clientLeft + hRect.width / 2;
+  const cy = hRect.top - cRect.top - cluster.clientTop + hRect.height / 2 + 6;
+  const far = Math.hypot(Math.max(cx, cluster.clientWidth - cx), Math.max(cy, cluster.clientHeight - cy));
   const size = Math.ceil(far * 2) + 4;
 
   wrapper.style.width = size + "px";
@@ -8361,8 +8362,10 @@ const ORIENTATION_MODES = [
   { id: "fullscreen-pfd-mode", label: "FULL SCREEN PFD", desc: "100% Full-Bleed Attitude Director & Tapes" },
   { id: "fullscreen-hsi-mode", label: "FULL SCREEN HSI", desc: "100% Full-Bleed HSI Compass & Nav Data" },
   { id: "fullscreen-map-mode", label: "FULL SCREEN MAP", desc: "100% Full-Bleed Interactive Aviation Moving Map" },
-  { id: "fullscreen-hsi-map-mode", label: "HSI + MOVING MAP", desc: "HSI Compass Overlaid on the Live Moving Map" }
+  { id: "fullscreen-hsi-map-mode", label: "HSI + MOVING MAP", desc: "HSI Compass Overlaid on the Live Moving Map" },
+  { id: "portrait-hsi-map-mode", label: "PORTRAIT SPLIT (HSI + MAP)", desc: "PFD Upper / HSI over Live Moving Map Lower Split" }
 ];
+const HSI_MAP_OVERLAY_MODES = ["fullscreen-hsi-map-mode", "portrait-hsi-map-mode"];
 
 let currentOrientationIndex = 0;
 const savedOrientation = localStorage.getItem("efis_orientation_mode");
@@ -8381,7 +8384,7 @@ function syncMapContainerLocation() {
   if (!mapWrapper || !efisMapCluster || !screenMapContainer) return;
 
   const currentMode = ORIENTATION_MODES[currentOrientationIndex] || ORIENTATION_MODES[0];
-  const isEfisMapMode = (currentMode.id === "portrait-map-mode" || currentMode.id === "landscape-map-mode" || currentMode.id === "fullscreen-map-mode" || currentMode.id === "fullscreen-hsi-map-mode");
+  const isEfisMapMode = (currentMode.id === "portrait-map-mode" || currentMode.id === "landscape-map-mode" || currentMode.id === "fullscreen-map-mode" || HSI_MAP_OVERLAY_MODES.includes(currentMode.id));
 
   if (currentScreenIndex === 0 && isEfisMapMode) {
     if (mapWrapper.parentElement !== efisMapCluster) {
@@ -8415,7 +8418,8 @@ function applyOrientationMode(index, announce = false) {
 
   ORIENTATION_MODES.forEach(m => document.body.classList.remove(m.id));
   document.body.classList.add(currentMode.id);
-  hsiMapOverlayActive = currentMode.id === "fullscreen-hsi-map-mode";
+  hsiMapOverlayActive = HSI_MAP_OVERLAY_MODES.includes(currentMode.id);
+  document.body.classList.toggle("hsi-map-overlay", hsiMapOverlayActive);
   localStorage.setItem("efis_orientation_mode", currentMode.id);
 
   const btnHeader = document.getElementById("btn-toggle-orientation");
