@@ -221,6 +221,21 @@ const DEFAULT_AIRCRAFT_PROFILES = {
       maxChtC: 135, oilTempC: { minTakeoff: 50, max: 130 }
     },
     isCustom: false
+  },
+  ga912: {
+    // Australian LightWing GA912 (smaller, lower-drag wing, Rotax 912). Manufacturer baseline:
+    // Vso 40, Vs 44-45, cruise 85-90, Vne 110 kt, MTOW 544 kg. The wing drops quickly below 45 kt
+    // in the flare, so the approach target is 55-60 kt. Vx, Vy, Vfe, Va, Vno, G and glide are
+    // estimates. CHT max uses the stricter 912 ULS figure (135 °C; the UL allows 150 °C).
+    id: "ga912", callsign: "24-GA912", name: "LightWing GA912 (RA-Aus)", type: "light_ga",
+    vSo: 40, vS: 45, vX: 55, vY: 62, vFe: 70, vA: 85, vNo: 95, vNe: 110,
+    bestGlideRatio: 8.5, bestGlideSpeedKt: 60, maxPositiveG: 6.0, maxNegativeG: -3.0,
+    cruiseKt: 88, approachKt: 58, mtowKg: 544, emptyWeightKg: 300,
+    engine: {
+      model: "Rotax 912 UL/ULS", maxRpm: 5800, maxContinuousRpm: 5500,
+      maxChtC: 135, oilTempC: { minTakeoff: 50, max: 130 }
+    },
+    isCustom: false
   }
 };
 
