@@ -205,6 +205,22 @@ const DEFAULT_AIRCRAFT_PROFILES = {
     bestGlideRatio: 8.0, bestGlideSpeedKt: 50, maxPositiveG: 6.0, maxNegativeG: -3.0,
     cruiseKt: 68, climbFpm: 700, mtowKg: 544, emptyWeightKg: 265, wingAreaM2: 14.86, wingspanM: 9.6,
     isCustom: false
+  },
+  gr912: {
+    // Australian LightWing GR 912 / Sport 2000 (Rotax 912 four-stroke). Manufacturer baseline:
+    // Vso 36-38, Vs 40, cruise 75-85, Vh 95, Vne 110 kt, ROC 800-950 fpm, MTOW 544 kg (600 kg on
+    // newer LSA builds). Vno is set to Vh; Vx, Vy, Vfe, Va, G and glide figures are estimates.
+    // Engine limits (912 UL/ULS) are recorded for a future engine page; no engine sensors yet.
+    id: "gr912", callsign: "24-GR912", name: "LightWing GR 912 (RA-Aus)", type: "light_ga",
+    vSo: 37, vS: 40, vX: 50, vY: 58, vFe: 70, vA: 80, vNo: 95, vNe: 110,
+    bestGlideRatio: 9.0, bestGlideSpeedKt: 55, maxPositiveG: 6.0, maxNegativeG: -3.0,
+    cruiseKt: 80, climbFpm: 875, mtowKg: 544, emptyWeightKg: 298, wingAreaM2: 15.35, wingspanM: 9.5,
+    engine: {
+      model: "Rotax 912 UL/ULS", maxRpm: 5800, maxContinuousRpm: 5500,
+      oilPressPsi: { min: 12, normalMin: 29, normalMax: 73, max: 102 },
+      maxChtC: 135, oilTempC: { minTakeoff: 50, max: 130 }
+    },
+    isCustom: false
   }
 };
 
