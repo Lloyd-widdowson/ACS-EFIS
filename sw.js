@@ -1,4 +1,4 @@
-const CACHE_NAME = 'efis-suite-v30';
+const CACHE_NAME = 'efis-suite-v31';
 const ASSETS = [
   './',
   './index.html',

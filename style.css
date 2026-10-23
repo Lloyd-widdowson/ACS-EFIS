@@ -3186,6 +3186,89 @@ canvas {
   color: #fff;
 }
 
+.profile-chip-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--aviation-cyan);
+  border-radius: 50%;
+  color: var(--aviation-cyan);
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-weight: bold;
+  font-size: 11px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.profile-chip.active .profile-chip-info {
+  border-color: #000;
+  color: #000;
+}
+
+.profile-chip-info:hover {
+  background: var(--aviation-cyan);
+  color: #000;
+}
+
+/* Aircraft details sheet */
+.aircraft-info-card {
+  max-width: 460px;
+}
+
+.aircraft-info-section {
+  background: #000000;
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.aircraft-info-heading {
+  color: var(--aviation-cyan);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.aircraft-info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  border-top: 1px solid #111827;
+  font-size: 12px;
+}
+
+.aircraft-info-label {
+  color: #9ca3af;
+}
+
+.aircraft-info-value {
+  color: #ffffff;
+  font-weight: bold;
+  text-align: right;
+}
+
+.aircraft-info-est {
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--aviation-yellow);
+  border-radius: 3px;
+  color: var(--aviation-yellow);
+  font-size: 9px;
+  vertical-align: middle;
+}
+
+.aircraft-info-note {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
 /* Custom Profile Modal Form Styles */
 .custom-profile-modal-card {
   max-width: 620px;
