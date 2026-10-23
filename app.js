@@ -236,6 +236,20 @@ const DEFAULT_AIRCRAFT_PROFILES = {
       maxChtC: 135, oilTempC: { minTakeoff: 50, max: 130 }
     },
     isCustom: false
+  },
+  a22ls: {
+    // Aeroprakt A22LS Foxbat, Rotax 912 ULS (STOL). Manufacturer baseline: Vso 32 (TAS), Vs 36-38,
+    // Vy 54 (690 fpm at MTOW), Vfe 80, cruise 90-95, Vne 124 kt, +4/-2 G operational, glide 9:1,
+    // MTOW 600 kg, 113 L usable fuel. Vx, Va, Vno (set to the 108 kt max level speed) and best
+    // glide speed are estimates.
+    id: "a22ls", callsign: "24-A22LS", name: "Aeroprakt A22LS Foxbat (RA-Aus)", type: "light_ga",
+    vSo: 32, vS: 37, vX: 47, vY: 54, vFe: 80, vA: 90, vNo: 108, vNe: 124,
+    bestGlideRatio: 9.0, bestGlideSpeedKt: 55, maxPositiveG: 4.0, maxNegativeG: -2.0,
+    cruiseKt: 92, climbFpm: 690, mtowKg: 600, emptyWeightKg: 310, fuelUsableL: 113,
+    engine: {
+      model: "Rotax 912 ULS", maxRpm: 5800, maxContinuousRpm: 5500, maxChtC: 135
+    },
+    isCustom: false
   }
 };
 
