@@ -195,6 +195,16 @@ const DEFAULT_AIRCRAFT_PROFILES = {
     id: "lsa", callsign: "24-8890", name: "Jabiru / Foxbat LSA (RA-Aus)", type: "light_ga",
     vSo: 32, vS: 39, vX: 52, vY: 62, vFe: 70, vA: 85, vNo: 105, vNe: 120,
     bestGlideRatio: 11.5, bestGlideSpeedKt: 58, maxPositiveG: 4.0, maxNegativeG: -2.0, isCustom: false
+  },
+  gr582: {
+    // Australian LightWing GR 582 (Rotax 582 two-stroke). Manufacturer baseline: Vso 32, Vs 36-38,
+    // cruise 65-70, Vne 100 kt, +6/-3 G, MTOW 544 kg, ROC 650-800 fpm. Vx, Vy, Vfe, Va, Vno and
+    // glide figures are not in that sheet and are conservative estimates; check the POH.
+    id: "gr582", callsign: "24-GR582", name: "LightWing GR 582 (RA-Aus)", type: "light_ga",
+    vSo: 32, vS: 37, vX: 45, vY: 50, vFe: 65, vA: 75, vNo: 85, vNe: 100,
+    bestGlideRatio: 8.0, bestGlideSpeedKt: 50, maxPositiveG: 6.0, maxNegativeG: -3.0,
+    cruiseKt: 68, climbFpm: 700, mtowKg: 544, emptyWeightKg: 265, wingAreaM2: 14.86, wingspanM: 9.6,
+    isCustom: false
   }
 };
 
@@ -7439,6 +7449,9 @@ function selectAircraftProfile(profileId, persist = true) {
 
   // Update Callsign
   sim.callsign = currentProfile.callsign || "VH-TRE";
+
+  // Profiles with a published cruise speed set the speed bug (also the route planner's ETE speed)
+  if (currentProfile.cruiseKt) sim.selectedSpeedBug = currentProfile.cruiseKt;
 
   // Update V-Speed Metrics Grid in Settings
   const vSoEl = document.getElementById("v-so");
