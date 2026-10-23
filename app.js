@@ -204,6 +204,8 @@ const DEFAULT_AIRCRAFT_PROFILES = {
     vSo: 32, vS: 37, vX: 45, vY: 50, vFe: 65, vA: 75, vNo: 85, vNe: 100,
     bestGlideRatio: 8.0, bestGlideSpeedKt: 50, maxPositiveG: 6.0, maxNegativeG: -3.0,
     cruiseKt: 68, climbFpm: 700, mtowKg: 544, emptyWeightKg: 265, wingAreaM2: 14.86, wingspanM: 9.6,
+    fuelBurnLph: 18,
+    estimated: ["vX", "vY", "vFe", "vA", "vNo", "bestGlideRatio", "bestGlideSpeedKt", "fuelBurnLph"],
     isCustom: false
   },
   gr912: {
@@ -215,6 +217,8 @@ const DEFAULT_AIRCRAFT_PROFILES = {
     vSo: 37, vS: 40, vX: 50, vY: 58, vFe: 70, vA: 80, vNo: 95, vNe: 110,
     bestGlideRatio: 9.0, bestGlideSpeedKt: 55, maxPositiveG: 6.0, maxNegativeG: -3.0,
     cruiseKt: 80, climbFpm: 875, mtowKg: 544, emptyWeightKg: 298, wingAreaM2: 15.35, wingspanM: 9.5,
+    fuelBurnLph: 15,
+    estimated: ["vX", "vY", "vFe", "vA", "vNo", "maxPositiveG", "maxNegativeG", "bestGlideRatio", "bestGlideSpeedKt", "fuelBurnLph"],
     engine: {
       model: "Rotax 912 UL/ULS", maxRpm: 5800, maxContinuousRpm: 5500,
       oilPressPsi: { min: 12, normalMin: 29, normalMax: 73, max: 102 },
@@ -230,7 +234,8 @@ const DEFAULT_AIRCRAFT_PROFILES = {
     id: "ga912", callsign: "24-GA912", name: "LightWing GA912 (RA-Aus)", type: "light_ga",
     vSo: 40, vS: 45, vX: 55, vY: 62, vFe: 70, vA: 85, vNo: 95, vNe: 110,
     bestGlideRatio: 8.5, bestGlideSpeedKt: 60, maxPositiveG: 6.0, maxNegativeG: -3.0,
-    cruiseKt: 88, approachKt: 58, mtowKg: 544, emptyWeightKg: 300,
+    cruiseKt: 88, approachKt: 58, mtowKg: 544, emptyWeightKg: 300, fuelBurnLph: 16,
+    estimated: ["vX", "vY", "vFe", "vA", "vNo", "maxPositiveG", "maxNegativeG", "bestGlideRatio", "bestGlideSpeedKt", "fuelBurnLph"],
     engine: {
       model: "Rotax 912 UL/ULS", maxRpm: 5800, maxContinuousRpm: 5500,
       maxChtC: 135, oilTempC: { minTakeoff: 50, max: 130 }
@@ -246,6 +251,9 @@ const DEFAULT_AIRCRAFT_PROFILES = {
     vSo: 32, vS: 37, vX: 47, vY: 54, vFe: 80, vA: 90, vNo: 108, vNe: 124,
     bestGlideRatio: 9.0, bestGlideSpeedKt: 55, maxPositiveG: 4.0, maxNegativeG: -2.0,
     cruiseKt: 92, climbFpm: 690, mtowKg: 600, emptyWeightKg: 310, fuelUsableL: 113,
+    // ~17 L/h: 113 L gives about 5 h 45 min of cruise plus reserve
+    fuelBurnLph: 17,
+    estimated: ["vX", "vA", "vNo", "bestGlideSpeedKt", "fuelBurnLph"],
     engine: {
       model: "Rotax 912 ULS", maxRpm: 5800, maxContinuousRpm: 5500, maxChtC: 135
     },
@@ -7484,6 +7492,112 @@ function updateHomeAirportDisplay() {
 // ============================================================================
 // 8.1 AIRCRAFT PROFILE MANAGEMENT & CUSTOM AIRFRAME EDITOR
 // ============================================================================
+
+// Aircraft details sheet (the ⓘ on each profile chip). Rows with no value are left out;
+// figures listed in a profile's `estimated` array are tagged EST.
+function openAircraftInfoModal(profileId) {
+  const prof = AIRCRAFT_PROFILES[profileId];
+  const modal = document.getElementById("aircraft-info-modal");
+  const body = document.getElementById("aircraft-info-body");
+  if (!prof || !modal || !body) return;
+
+  const est = new Set(prof.estimated || []);
+  const kt = v => `${Math.round(v)} kt`;
+  const eng = prof.engine || {};
+  const useful = (prof.mtowKg && prof.emptyWeightKg) ? prof.mtowKg - prof.emptyWeightKg : null;
+  const endurance = (prof.fuelUsableL && prof.fuelBurnLph) ? prof.fuelUsableL / prof.fuelBurnLph : null;
+
+  const sections = [
+    ["WEIGHTS & FUEL", [
+      ["Max take-off weight", prof.mtowKg, v => `${v} kg (${Math.round(v * 2.20462)} lb)`, "mtowKg"],
+      ["Empty weight (typical)", prof.emptyWeightKg, v => `${v} kg`, "emptyWeightKg"],
+      ["Useful load", useful, v => `${v} kg`, null],
+      ["Usable fuel", prof.fuelUsableL, v => `${v} L`, "fuelUsableL"],
+      ["Fuel burn (cruise)", prof.fuelBurnLph, v => `${v} L/h`, "fuelBurnLph"],
+      ["Endurance (no reserve)", endurance, v => `${Math.floor(v)} h ${Math.round((v % 1) * 60)} min`, "fuelBurnLph"]
+    ]],
+    ["SPEEDS", [
+      ["Vso stall, flaps down", prof.vSo, kt, "vSo"],
+      ["Vs stall, clean", prof.vS, kt, "vS"],
+      ["Vx best angle", prof.vX, kt, "vX"],
+      ["Vy best rate", prof.vY, kt, "vY"],
+      ["Approach", prof.approachKt, kt, "approachKt"],
+      ["Cruise", prof.cruiseKt, kt, "cruiseKt"],
+      ["Vfe max flaps", prof.vFe, kt, "vFe"],
+      ["Va manoeuvring", prof.vA, kt, "vA"],
+      ["Vno max cruise", prof.vNo, kt, "vNo"],
+      ["Vne never exceed", prof.vNe, kt, "vNe"]
+    ]],
+    ["PERFORMANCE & STRUCTURE", [
+      ["Climb rate", prof.climbFpm, v => `${v} ft/min`, "climbFpm"],
+      ["Best glide", prof.bestGlideRatio ? prof.bestGlideRatio : null, v => `${v}:1 at ${Math.round(prof.bestGlideSpeedKt)} kt`, "bestGlideRatio"],
+      ["G limits", prof.maxPositiveG, v => `+${v.toFixed(1)} / ${(prof.maxNegativeG || 0).toFixed(1)} G`, "maxPositiveG"],
+      ["Wing area", prof.wingAreaM2, v => `${v} m²`, "wingAreaM2"],
+      ["Wingspan", prof.wingspanM, v => `${v} m`, "wingspanM"]
+    ]],
+    ["ENGINE", [
+      ["Engine", eng.model, v => v, null],
+      ["Max RPM (5 min)", eng.maxRpm, v => `${v}`, null],
+      ["Max continuous RPM", eng.maxContinuousRpm, v => `${v}`, null],
+      ["Max CHT", eng.maxChtC, v => `${v} °C`, null],
+      ["Oil temp", eng.oilTempC ? eng.oilTempC.max : null, v => `${eng.oilTempC.minTakeoff} °C min for take-off, ${v} °C max`, null],
+      ["Oil pressure", eng.oilPressPsi ? eng.oilPressPsi.max : null, v => `${eng.oilPressPsi.min} min, ${eng.oilPressPsi.normalMin}–${eng.oilPressPsi.normalMax} normal, ${v} max psi`, null]
+    ]]
+  ];
+
+  document.getElementById("aircraft-info-title").textContent = `${prof.name} (${prof.callsign || prof.id.toUpperCase()})`;
+  body.innerHTML = "";
+  let anyEstimate = false;
+  sections.forEach(([title, rows]) => {
+    const shown = rows.filter(r => r[1] !== undefined && r[1] !== null && r[1] !== "");
+    if (!shown.length) return;
+    const card = document.createElement("div");
+    card.className = "aircraft-info-section";
+    const h = document.createElement("div");
+    h.className = "aircraft-info-heading";
+    h.textContent = title;
+    card.appendChild(h);
+    shown.forEach(([label, value, fmt, key]) => {
+      const row = document.createElement("div");
+      row.className = "aircraft-info-row";
+      const l = document.createElement("span");
+      l.className = "aircraft-info-label";
+      l.textContent = label;
+      const v = document.createElement("span");
+      v.className = "aircraft-info-value";
+      v.textContent = fmt(value);
+      if (key && est.has(key)) {
+        anyEstimate = true;
+        const tag = document.createElement("span");
+        tag.className = "aircraft-info-est";
+        tag.textContent = "EST";
+        v.appendChild(tag);
+      }
+      row.appendChild(l);
+      row.appendChild(v);
+      card.appendChild(row);
+    });
+    body.appendChild(card);
+  });
+
+  const note = document.createElement("p");
+  note.className = "aircraft-info-note";
+  note.textContent = (anyEstimate ? "EST = estimated, not from the manufacturer figures. " : "") +
+    "Reference only: always use your aircraft's POH and weight & balance.";
+  body.appendChild(note);
+
+  modal.classList.remove("hidden");
+}
+
+document.getElementById("btn-close-aircraft-info")?.addEventListener("click", () => {
+  document.getElementById("aircraft-info-modal")?.classList.add("hidden");
+});
+document.getElementById("aircraft-info-modal")?.addEventListener("click", (e) => {
+  if (e.target.id === "aircraft-info-modal") e.currentTarget.classList.add("hidden");
+});
+
+// ============================================================================
+// ============================================================================
 function selectAircraftProfile(profileId, persist = true) {
   if (!AIRCRAFT_PROFILES[profileId]) return;
   currentProfile = AIRCRAFT_PROFILES[profileId];
@@ -7538,10 +7652,16 @@ function renderAircraftProfileChips() {
     btn.setAttribute("data-profile", prof.id);
     btn.innerHTML = `
       <span>${prof.name} (${prof.callsign || prof.id.toUpperCase()})</span>
+      <span class="profile-chip-info" role="button" aria-label="Aircraft details" title="Aircraft details">i</span>
       ${prof.isCustom ? `<span class="profile-chip-delete" title="Delete custom profile" data-delete-id="${prof.id}">✕</span>` : ''}
     `;
 
     btn.addEventListener("click", (e) => {
+      if (e.target.classList.contains("profile-chip-info")) {
+        e.stopPropagation();
+        openAircraftInfoModal(prof.id);
+        return;
+      }
       if (e.target.classList.contains("profile-chip-delete")) {
         e.stopPropagation();
         deleteCustomAircraftProfile(prof.id);
